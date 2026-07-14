@@ -1,0 +1,70 @@
+/**
+ * Database Configuration & Connection Pool
+ * Menggunakan mysql2/promise untuk async/await support
+ */
+
+const mysql = require("mysql2/promise");
+require("dotenv").config();
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || "localhost",
+  port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "kpi_witel_pekalongan",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});
+
+/**
+ * Helper: execute query dengan auto-connection management
+ */
+async function query(sql, values = []) {
+  const connection = await pool.getConnection();
+  try {
+    const [result] = await connection.execute(sql, values);
+    return result;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Helper: execute multiple queries dalam satu transaction
+ */
+async function transaction(callback) {
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
+  try {
+    const result = await callback(connection);
+    await connection.commit();
+    return result;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Test koneksi database
+ */
+async function testConnection() {
+  try {
+    const result = await query("SELECT 1");
+    console.log("✓ Database connection successful");
+    return true;
+  } catch (error) {
+    console.error("✗ Database connection failed:", error.message);
+    return false;
+  }
+}
+
+module.exports = {
+  pool,
+  query,
+  transaction,
+  testConnection,
+};

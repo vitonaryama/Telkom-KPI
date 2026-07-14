@@ -53,7 +53,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="SERVICE AVAILABILITY" value={overall.availability} target={TARGETS.availability} />
         <KpiCard label="ASSURANCE GUARANTEE" value={overall.assurance} target={TARGETS.assurance} />
-        <KpiCard label="TTR 3 JAM" value={overall.ttr3} target={TARGETS.ttr3} />
+        <KpiCard label="TTR 3 JAM D" value={overall.ttr3} target={TARGETS.ttr3} />
         <KpiCard label="SQM" value={overall.sqm} target={TARGETS.sqm} />
       </div>
 
@@ -94,7 +94,7 @@ export default function DashboardPage() {
               <th className="text-left font-semibold px-4 py-3">Service Area / STO</th>
               <th className="text-left font-semibold px-4 py-3">Service Availability</th>
               <th className="text-left font-semibold px-4 py-3">Assurance Guarantee</th>
-              <th className="text-left font-semibold px-4 py-3">TTR 3 Jam</th>
+              <th className="text-left font-semibold px-4 py-3">TTR 3 Jam D</th>
               <th className="text-left font-semibold px-4 py-3">SQM</th>
             </tr>
           </thead>
@@ -113,7 +113,7 @@ export default function DashboardPage() {
       {/* Trend chart */}
       <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-gray-800">Trend Monitoring — TTR 3 Jam</h3>
+          <h3 className="text-sm font-bold text-gray-800">Trend Monitoring — TTR 3 Jam D</h3>
           <span className="text-xs text-gray-400">Oktober 2024</span>
         </div>
         <ResponsiveContainer width="100%" height={280}>
