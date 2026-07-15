@@ -5,6 +5,8 @@ import ExpandableRow from "./ExpandableRow.jsx";
 import TrendMonitoring from "./TrendMonitoring.jsx";
 import { WITEL_DATA, TARGETS } from "../data/mockData.js";
 
+const ALL_AREAS = "All Service Areas";
+
 export default function DashboardPage() {
   const [expanded, setExpanded] = useState({ Pekalongan: true });
   const [search, setSearch] = useState("");
@@ -18,19 +20,33 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
+
   const toggle = useCallback((witel) => {
     setExpanded((prev) => ({ ...prev, [witel]: !prev[witel] }));
   }, []);
 
+  // FIX: filter Area sekarang beneran jalan, digabung sama search box.
+  // Filter Tahun/Bulan sengaja belum disambung — mockData.js belum punya dimensi
+  // waktu per witel, jadi baru bisa aktif kalau datanya sudah dari backend
+  // yang menyimpan histori bulanan.
   const filteredData = useMemo(() => {
-    if (!search.trim()) return WITEL_DATA;
-    const q = search.toLowerCase();
-    return WITEL_DATA.filter(
-      (w) =>
-        w.witel.toLowerCase().includes(q) ||
-        w.stos.some((s) => s.nama.toLowerCase().includes(q))
-    );
-  }, [search]);
+    let data = WITEL_DATA;
+
+    if (area !== ALL_AREAS) {
+      data = data.filter((w) => w.witel === area);
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      data = data.filter(
+        (w) =>
+          w.witel.toLowerCase().includes(q) ||
+          w.stos.some((s) => s.nama.toLowerCase().includes(q))
+      );
+    }
+
+    return data;
+  }, [search, area]);
 
   const overall = useMemo(() => {
     const n = WITEL_DATA.length;
@@ -111,6 +127,7 @@ export default function DashboardPage() {
           </button>
         </div>
       )}
+
 
       {/* Data table */}
       {isLoading ? (

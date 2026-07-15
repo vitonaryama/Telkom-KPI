@@ -1,21 +1,25 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, Radio, Wifi, Gauge } from "lucide-react";
-import heroImage from "../assets/hero.png";
 
 /* =========================================================================
-   LOGIN PAGE
+   REGISTER PAGE
    ========================================================================= */
 
-export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPassword, initialEmail = "" }) {
-  const [email, setEmail] = useState(initialEmail);
+export default function RegisterPage({ onRegister, onBackToLogin }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const nameValid = name.trim().length >= 3;
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const passwordValid = password.length >= 8;
+  const confirmValid = confirmPassword.length > 0 && confirmPassword === password;
+
+  const nameError = touched && !nameValid ? "Nama minimal 3 karakter." : "";
   const emailError = touched && email.length === 0
     ? "Email tidak boleh kosong."
     : touched && !emailValid
@@ -26,32 +30,43 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
     : touched && !passwordValid
     ? "Kata sandi minimal 8 karakter."
     : "";
+  const confirmError = touched && confirmPassword.length === 0
+    ? "Konfirmasi kata sandi tidak boleh kosong."
+    : touched && !confirmValid
+    ? "Konfirmasi kata sandi tidak cocok."
+    : "";
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setTouched(true);
-    if (!emailValid || !passwordValid) return;
+    if (!nameValid || !emailValid || !passwordValid || !confirmValid) return;
     setSubmitting(true);
+    // TODO: ganti setTimeout ini dengan panggilan services/api.js (mis. register(name, email, password))
+    // begitu endpoint registrasi di backend Spring Boot sudah tersedia.
     setTimeout(() => {
       setSubmitting(false);
-      onLogin({ email, name: "Ops Manager", role: "Branch Pekalongan" });
+      onRegister({ email, name, role: "Branch Pekalongan" });
     }, 500);
   };
 
   return (
     <div className="min-h-screen w-full flex bg-white">
-      {/* Left illustration panel */}
+      {/* Left illustration panel — sama seperti LoginPage biar konsisten */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-slate-950">
-        {/* Foto background dari src/assets/hero.png */}
-        <img
-          src={heroImage}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        {/* Overlay gelap gradasi biar teks di atasnya tetap kebaca jelas */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-slate-950/50 to-slate-950/90" />
-        {/* Signal tower motif */}
+        <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 800 900" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <linearGradient id="gridFadeRegister" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {Array.from({ length: 18 }).map((_, i) => (
+            <line key={`h${i}`} x1="0" y1={i * 50} x2="800" y2={i * 50} stroke="url(#gridFadeRegister)" strokeWidth="1" />
+          ))}
+          {Array.from({ length: 16 }).map((_, i) => (
+            <line key={`v${i}`} x1={i * 50} y1="0" x2={i * 50} y2="900" stroke="url(#gridFadeRegister)" strokeWidth="1" />
+          ))}
+        </svg>
         <div className="relative z-10 m-auto flex flex-col items-center gap-8 px-12">
           <div className="relative">
             <Radio size={64} className="text-red-500" strokeWidth={1.5} />
@@ -59,11 +74,11 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
           </div>
           <div className="text-center space-y-3">
             <h2 className="text-white text-2xl font-bold leading-snug">
-              Monitoring Kinerja Jaringan<br />Secara Real-Time
+              Gabung Kelola Kinerja<br />Jaringan Bersama Kami
             </h2>
             <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-              Pantau Service Availability, Assurance Guarantee, TTR, dan SQM
-              di seluruh Service Area Jawa Tengah dalam satu dashboard terpadu.
+              Buat akun untuk mulai memantau Service Availability, Assurance
+              Guarantee, TTR, dan SQM di seluruh Service Area Jawa Tengah.
             </p>
           </div>
           <div className="flex items-center gap-6 text-slate-500 text-xs pt-4">
@@ -93,16 +108,24 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
             </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Masuk ke akun Anda</h1>
-          <p className="text-sm text-gray-500 mb-6">Pantau KPI IOAN Anda dari sini.</p>
-
-          {initialEmail && (
-            <div className="mb-6 rounded-lg bg-emerald-50 border border-emerald-100 px-3.5 py-2.5 text-xs text-emerald-700">
-              Akun berhasil dibuat. Silakan masuk dengan kata sandi yang baru saja Anda buat.
-            </div>
-          )}
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Buat akun baru</h1>
+          <p className="text-sm text-gray-500 mb-8">Daftar untuk mulai memantau KPI IOAN Anda.</p>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-1.5">Nama Lengkap</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Nama Anda"
+                className={`w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none transition-colors ${
+                  nameError ? "border-red-400 focus:border-red-500" : "border-gray-300 focus:border-red-500"
+                }`}
+              />
+              {nameError && <p className="mt-1 text-xs text-red-600">{nameError}</p>}
+            </div>
+
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-1.5">Email</label>
               <input
@@ -142,21 +165,18 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
               {passwordError && <p className="mt-1 text-xs text-red-600">{passwordError}</p>}
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 text-gray-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                />
-                Ingat Saya
-              </label>
-              {/* FIX: sebelumnya <a href="#">, gak ngapa-ngapain pas diklik.
-                  Sekarang manggil onGoToForgotPassword buat pindah ke ForgotPasswordPage. */}
-              <button type="button" onClick={onGoToForgotPassword} className="text-red-600 font-medium hover:underline">
-                Lupa Kata Sandi?
-              </button>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-1.5">Konfirmasi Kata Sandi</label>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Ulangi Kata Sandi"
+                className={`w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none transition-colors ${
+                  confirmError ? "border-red-400 focus:border-red-500" : "border-gray-300 focus:border-red-500"
+                }`}
+              />
+              {confirmError && <p className="mt-1 text-xs text-red-600">{confirmError}</p>}
             </div>
 
             <button
@@ -164,19 +184,17 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
               disabled={submitting}
               className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-sm"
             >
-              {submitting ? "Memproses..." : "Login"}
+              {submitting ? "Memproses..." : "Daftar"}
             </button>
 
             <p className="text-center text-sm text-gray-500">
-              Belum punya akun?{" "}
-              {/* FIX: sebelumnya <a href="#">, gak ngapa-ngapain pas diklik.
-                  Sekarang manggil onGoToRegister buat pindah ke RegisterPage. */}
+              Sudah punya akun?{" "}
               <button
                 type="button"
-                onClick={onGoToRegister}
+                onClick={onBackToLogin}
                 className="text-red-600 font-medium hover:underline"
               >
-                Daftar
+                Masuk
               </button>
             </p>
           </form>

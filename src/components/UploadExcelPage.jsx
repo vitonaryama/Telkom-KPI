@@ -11,7 +11,9 @@ export default function UploadExcelPage() {
   const [files, setFiles] = useState([
     { name: "KPI_Regional_July_2024.xlsx", size: "1.2 MB", status: "success", progress: 100, rows: 450 },
   ]);
-  const [error, setError] = useState('Row 42: Missing mandatory field "SiteID". Please check your template.');
+  // FIX: sebelumnya di-hardcode jadi selalu muncul pesan error palsu pas halaman baru dibuka.
+  // Error cuma boleh muncul kalau ADA validasi yang beneran gagal.
+  const [error, setError] = useState(null);
   const inputRef = useRef(null);
 
   const addFiles = useCallback((fileList) => {
@@ -22,6 +24,13 @@ export default function UploadExcelPage() {
       progress: 100,
       rows: Math.floor(200 + Math.random() * 400),
     }));
+
+    // FIX: kalau ada file yang kedeteksi > 25MB, baru munculin pesan error, bukan selalu ada.
+    const tooLarge = incoming.find((f) => f.status === "error");
+    if (tooLarge) {
+      setError(`File "${tooLarge.name}" melebihi batas 25MB. Silakan kompres atau pecah filenya.`);
+    }
+
     setFiles((prev) => [...incoming, ...prev]);
   }, []);
 
@@ -32,6 +41,13 @@ export default function UploadExcelPage() {
   };
 
   const removeFile = (name) => setFiles((prev) => prev.filter((f) => f.name !== name));
+
+  const handleFileInputChange = (e) => {
+    if (e.target.files?.length) addFiles(e.target.files);
+    // FIX: reset value biar user bisa pilih file yang SAMA dua kali berturut-turut.
+    // Tanpa ini, browser gak nge-trigger onChange kalau file-nya identik dengan sebelumnya.
+    e.target.value = "";
+  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50 p-6 space-y-6">
@@ -75,7 +91,7 @@ export default function UploadExcelPage() {
               accept=".xlsx,.xls"
               multiple
               className="hidden"
-              onChange={(e) => e.target.files?.length && addFiles(e.target.files)}
+              onChange={handleFileInputChange}
             />
           </div>
 
@@ -89,7 +105,7 @@ export default function UploadExcelPage() {
                     {f.size} · {f.status === "success" ? "Ready to import" : "Failed"}
                   </p>
                 </div>
-                <button onClick={() => removeFile(f.name)} className="text-gray-400 hover:text-red-600 shrink-0">
+                <button onClick={() => removeFile(f.name)} className="text-gray-400 hover:text-red-600 shrink-0" aria-label={`Hapus ${f.name}`}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -109,8 +125,10 @@ export default function UploadExcelPage() {
           {error && (
             <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg p-3">
               <AlertTriangle size={15} className="text-red-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-red-600 flex-1">Validation Failed on Sample_Data.xlsx <br />{error}</p>
-              <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 shrink-0"><X size={14} /></button>
+              <p className="text-xs text-red-600 flex-1">{error}</p>
+              <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 shrink-0" aria-label="Tutup pesan error">
+                <X size={14} />
+              </button>
             </div>
           )}
 
