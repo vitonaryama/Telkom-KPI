@@ -1,4 +1,3 @@
-import React from "react";
 import { Gauge, FileUp, LogOut, Radio } from "lucide-react";
 
 export default function Sidebar({ page, setPage, onLogout }) {
@@ -41,7 +40,7 @@ export default function Sidebar({ page, setPage, onLogout }) {
         <LogOut size={16} /> Keluar
       </button>
       <div className="px-5 py-3 border-t border-slate-800 text-[11px] text-slate-600">
-        V. 2.4.0-Stable
+        V. 2.4.1-Stable
       </div>
     </aside>
   );

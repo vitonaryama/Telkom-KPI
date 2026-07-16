@@ -437,7 +437,7 @@ def load_kpi_summary(engine: Engine, summary: list[dict], batch_id: int) -> None
 
 def mark_batch_ready(engine: Engine, batch_id: int) -> None:
     with engine.begin() as conn:
-        conn.execute(text("UPDATE upload_batch SET status='READY' WHERE id=?"), {"bid": batch_id})
+        conn.execute(text("UPDATE upload_batch SET status='READY' WHERE id=:bid"), {"bid": batch_id})
 
 
 # ==============================================================================
@@ -510,7 +510,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
     except Exception:
         with engine.begin() as conn:
             conn.execute(
-                text("UPDATE upload_batch SET status='FAILED' WHERE id=?"),
+                text("UPDATE upload_batch SET status='FAILED' WHERE id=:bid"),
                 {"bid": batch_id},
             )
         log.exception("ETL gagal, batch_id=%s ditandai FAILED.", batch_id)

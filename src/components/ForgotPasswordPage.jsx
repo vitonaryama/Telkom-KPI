@@ -1,37 +1,33 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Radio, Wifi, Gauge, MailCheck, ArrowLeft } from "lucide-react";
-
-/* =========================================================================
-   FORGOT PASSWORD PAGE
-   ========================================================================= */
+import { forgotPassword } from "../services/api.js";
 
 export default function ForgotPasswordPage({ onBackToLogin }) {
   const [email, setEmail] = useState("");
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
+  const [serverError, setServerError] = useState("");
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const emailError = touched && email.length === 0
     ? "Email tidak boleh kosong."
-    : touched && !emailValid
-    ? "Format email tidak valid."
-    : "";
+    : touched && !emailValid ? "Format email tidak valid." : "";
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setTouched(true);
+    setServerError("");
     if (!emailValid) return;
     setSubmitting(true);
-    // TODO: ganti setTimeout ini dengan panggilan services/api.js
-    // (mis. requestPasswordReset(email)) begitu endpoint backend-nya siap.
-    // Backend yang beneran HARUS tetap nampilin pesan sukses ini walau
-    // email-nya gak terdaftar, biar orang gak bisa nebak-nebak email mana
-    // yang punya akun (mencegah user enumeration).
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await forgotPassword(email);
       setSent(true);
-    }, 500);
+    } catch (err) {
+      setServerError(err.message || "Gagal mengirim permintaan. Coba lagi.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -116,6 +112,11 @@ export default function ForgotPasswordPage({ onBackToLogin }) {
               <p className="text-sm text-gray-500 mb-8">Masukkan email yang terdaftar, kami kirim link buat reset kata sandi Anda.</p>
 
               <form onSubmit={handleSubmit} noValidate className="space-y-5">
+                {serverError && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs text-red-600">
+                    {serverError}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 mb-1.5">Email</label>
                   <input

@@ -1,8 +1,3 @@
-/* =========================================================================
-   MOCK DATA
-   Ganti isi file ini dengan hasil fetch dari backend Go (Gin + GORM) kamu.
-   ========================================================================= */
-
 export const TARGETS = { availability: 99, assurance: 90, ttr3: 90, ttr6Jam: 95, ttr12Jam: 96, ttr24Jam: 97, ttr3JamM: 90, sqm: 75 };
 
 export const WITEL_DATA = [
@@ -66,10 +61,10 @@ export const TREND_DATA = [
 ];
 
 export const RECENT_UPLOADS = [
-  { time: "24 Jul 2024, 09:45", file: "KPI_Regional_July_2024.xlsx", user: "Andi Prasetyo", status: "Success" },
-  { time: "22 Jul 2024, 14:20", file: "Network_Log_B_Pekalongan.xlsx", user: "Andi Prasetyo", status: "Failed" },
-  { time: "21 Jul 2024, 11:05", file: "Maintenance_Report_Q2.xlsx", user: "Siti Aminah", status: "Success" },
-  { time: "19 Jul 2024, 16:30", file: "Regional_KPI_Draft_v2.xls", user: "Budi Santoso", status: "Success" },
+  { time: "14 Jul 2026, 09:45", file: "KPI_Regional_July_2026.csv", user: "Andi Prasetyo", status: "Success" },
+  { time: "12 Jul 2026, 14:20", file: "Network_Log_B_Pekalongan.csv", user: "Andi Prasetyo", status: "Failed" },
+  { time: "11 Jul 2026, 11:05", file: "Maintenance_Report_Q2.csv", user: "Siti Aminah", status: "Success" },
+  { time: "09 Jul 2026, 16:30", file: "Regional_KPI_Draft_v2.csv", user: "Budi Santoso", status: "Success" },
 ];
 
 export const LINE_COLORS = { Pekalongan: "#2563eb", Tegal: "#16a34a", Brebes: "#7c3aed", Pemalang: "#f59e0b" };

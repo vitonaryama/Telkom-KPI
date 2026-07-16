@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Eye, EyeOff, Radio, Wifi, Gauge } from "lucide-react";
 import heroImage from "../assets/hero.png";
+import { login } from "../services/api.js";
 
 /* =========================================================================
    LOGIN PAGE
@@ -13,6 +14,7 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
   const [remember, setRemember] = useState(false);
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const passwordValid = password.length >= 8;
@@ -27,15 +29,20 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
     ? "Kata sandi minimal 8 karakter."
     : "";
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setTouched(true);
+    setError("");
     if (!emailValid || !passwordValid) return;
     setSubmitting(true);
-    setTimeout(() => {
+    try {
+      const result = await login(email, password);
+      onLogin(result.data);
+    } catch (err) {
+      setError(err.message || "Login gagal. Periksa email dan password.");
+    } finally {
       setSubmitting(false);
-      onLogin({ email, name: "Ops Manager", role: "Branch Pekalongan" });
-    }, 500);
+    }
   };
 
   return (
@@ -103,6 +110,11 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
           )}
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            {error && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs text-red-600">
+                {error}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-1.5">Email</label>
               <input

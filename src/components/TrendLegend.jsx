@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function TrendLegend({ payload, hiddenLines, onToggle }) {
   // Hanya tampilkan legend untuk data series, jangan target (target akan tetap)
   const seriesPayload = payload?.filter((entry) => entry.dataKey !== "Target") || [];

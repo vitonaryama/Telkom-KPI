@@ -1,4 +1,3 @@
-import React from "react";
 import { RotateCcw, RefreshCw } from "lucide-react";
 
 export default function TrendFilterBar({

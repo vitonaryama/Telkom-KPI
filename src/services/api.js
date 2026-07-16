@@ -1,73 +1,143 @@
-/* =========================================================================
-   API SERVICE LAYER
-   Ganti BASE_URL sesuai alamat backend Spring Boot kamu.
-   Sesuaikan juga nama endpoint & bentuk response-nya kalau beda dari contoh ini.
-   ========================================================================= */
+const BASE_URL = "/api";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
+function getToken() {
+  return localStorage.getItem("kpi_token");
+}
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...options.headers },
-    ...options,
-  });
+  const token = getToken();
+  const headers = {
+    ...options.headers,
+  };
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${body || res.statusText}`);
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
-  // Response 204 (No Content) gak punya body buat di-parse
-  if (res.status === 204) return null;
-  return res.json();
+  if (options.body && !(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(options.body);
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (res.status === 401) {
+    localStorage.removeItem("kpi_token");
+    localStorage.removeItem("kpi_user");
+    window.location.reload();
+    throw new Error("Sesi berakhir, silakan login kembali");
+  }
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.error || `Request gagal: ${res.status}`);
+  }
+
+  return data;
 }
 
-/* --- KPI data ------------------------------------------------------- */
+/* ─── Auth ─────────────────────────────────────────────────────────────── */
 
-// GET /api/kpi/witel?year=2024&month=Januari
-// Contoh response yang diharapkan sama bentuknya kayak WITEL_DATA di mockData.js
-export function fetchWitelData({ year, month } = {}) {
-  const params = new URLSearchParams();
-  if (year) params.set("year", year);
-  if (month) params.set("month", month);
-  return request(`/kpi/witel?${params.toString()}`);
+export function register(name, email, password) {
+  return request("/auth/register", {
+    method: "POST",
+    body: { name, email, password },
+  });
 }
 
-// GET /api/kpi/trend?metric=ttr3
-export function fetchTrendData(metric = "ttr3") {
-  return request(`/kpi/trend?metric=${metric}`);
+export function login(email, password) {
+  return request("/auth/login", {
+    method: "POST",
+    body: { email, password },
+  });
 }
 
-/* --- Upload Excel ---------------------------------------------------- */
+export function getMe() {
+  return request("/auth/me");
+}
 
-// POST /api/kpi/upload (multipart/form-data)
-export async function uploadKpiExcel(file) {
+export function forgotPassword(email) {
+  return request("/auth/forgot-password", {
+    method: "POST",
+    body: { email },
+  });
+}
+
+export function resetPassword(token, newPassword) {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: { token, newPassword },
+  });
+}
+
+export function getKpiSummaryBySto(batchId, area) {
+  const params = new URLSearchParams({ batchId, area });
+  return request(`/kpi/summary-by-sto?${params}`);
+}
+
+/* ─── KPI ──────────────────────────────────────────────────────────────── */
+
+export function getKpiSummary(batchId, area = null) {
+  const params = new URLSearchParams({ batchId });
+  if (area) params.set("area", area);
+  return request(`/kpi/summary?${params}`);
+}
+
+export function getKpiOverview(batchId) {
+  return request(`/kpi/overview?batchId=${batchId}`);
+}
+
+export function getKpiTrend(kpiName, area, limit = 5) {
+  const params = new URLSearchParams({ kpiName, area, limit });
+  return request(`/kpi/trend?${params}`);
+}
+
+export function compareBatches(batchOld, batchNew) {
+  const params = new URLSearchParams({ batchOld, batchNew });
+  return request(`/kpi/compare?${params}`);
+}
+
+export function getProblemTickets(batchId, kpiName, area) {
+  const params = new URLSearchParams({ batchId, kpiName, area });
+  return request(`/kpi/problems?${params}`);
+}
+
+/* ─── Batches ──────────────────────────────────────────────────────────── */
+
+export function getBatches(limit = 20, offset = 0) {
+  const params = new URLSearchParams({ limit, offset });
+  return request(`/upload?${params}`);
+}
+
+export function getBatchById(id) {
+  return request(`/upload/${id}`);
+}
+
+/* ─── Upload ───────────────────────────────────────────────────────────── */
+
+export function validateFile(file, type) {
   const formData = new FormData();
   formData.append("file", file);
-
-  const res = await fetch(`${BASE_URL}/kpi/upload`, {
+  formData.append("type", type);
+  return request("/upload/validate", {
     method: "POST",
-    body: formData, // JANGAN set Content-Type manual, browser yang atur boundary-nya
+    body: formData,
   });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Upload gagal (${res.status}): ${body || res.statusText}`);
-  }
-  return res.json(); // { rows: number, status: "success" | "error", message?: string }
 }
 
-// GET /api/uploads/recent
-export function fetchRecentUploads() {
-  return request(`/uploads/recent`);
-}
-
-/* --- Auth (kalau backend sudah ada endpoint login JWT) --------------- */
-
-// POST /api/auth/login  body: { email, password }
-export function login(email, password) {
-  return request(`/auth/login`, {
+export function uploadCommit({ tiketCloseFile, sqmFile, periodeAwal, periodeAkhir, sourceFilename }) {
+  const formData = new FormData();
+  if (tiketCloseFile) formData.append("tiketCloseFile", tiketCloseFile);
+  if (sqmFile) formData.append("sqmFile", sqmFile);
+  formData.append("periodeAwal", periodeAwal);
+  formData.append("periodeAkhir", periodeAkhir);
+  if (sourceFilename) formData.append("sourceFilename", sourceFilename);
+  return request("/upload/commit", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: formData,
   });
 }

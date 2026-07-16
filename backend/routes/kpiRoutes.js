@@ -163,4 +163,26 @@ router.get("/problems", async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/kpi/summary-by-sto
+ * Ambil ringkasan KPI per STO untuk satu batch dan area tertentu
+ * (dipakai saat user expand area row di dashboard)
+ *
+ * Query params:
+ *   - batchId (required): upload_batch.id
+ *   - area (required): area (PEKALONGAN, PEMALANG, TEGAL, BREBES)
+ */
+router.get("/summary-by-sto", async (req, res, next) => {
+  try {
+    const { batchId, area } = req.query;
+    if (!batchId || !area) {
+      return res.status(400).json({ error: "Query params 'batchId' dan 'area' wajib diisi" });
+    }
+    const data = await kpiService.getKpiSummaryBySto(parseInt(batchId), area);
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

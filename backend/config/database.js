@@ -18,16 +18,14 @@ const pool = mysql.createPool({
 });
 
 /**
- * Helper: execute query dengan auto-connection management
+ * Helper: execute query dengan auto-connection management.
+ * Menggunakan pool.query() (non-prepared) agar kompatibel dengan
+ * LIMIT/OFFSET sebagai parameter di semua versi MySQL 5.7+/8.0+.
+ * Nilai parameter di-escape oleh mysql2, tetap aman dari SQL injection.
  */
 async function query(sql, values = []) {
-  const connection = await pool.getConnection();
-  try {
-    const [result] = await connection.execute(sql, values);
-    return result;
-  } finally {
-    connection.release();
-  }
+  const [result] = await pool.query(sql, values);
+  return result;
 }
 
 /**

@@ -32,13 +32,13 @@ const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    if (![".csv", ".xlsx"].includes(ext)) {
-      return cb(new Error("Hanya file CSV atau XLSX yang diizinkan"));
+    if (ext !== ".csv") {
+      return cb(new Error("Hanya file CSV yang diizinkan"));
     }
     cb(null, true);
   },
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 52428800, // 50MB default
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 26214400,
   },
 });
 
@@ -134,8 +134,8 @@ router.post("/commit", upload.fields([
     // Create upload_batch
     const batchResult = await db.query(`
       INSERT INTO upload_batch
-        (source_filename, file_type, periode_awal, periode_akhir, jumlah_hari_periode, status)
-      VALUES (?, 'GABUNGAN', ?, ?, ?, 'PROCESSING')
+        (source_filename, file_type, periode_awal, periode_akhir, jumlah_hari_periode, period_type, row_count_ttr, row_count_sqm, status)
+      VALUES (?, 'GABUNGAN', ?, ?, ?, 'daily', 0, 0, 'PROCESSING')
     `, [sourceFilename || "unknown.csv", periodeAwal, periodeAkhir, jumlahHari]);
 
     const batchId = batchResult.insertId;
@@ -161,8 +161,11 @@ router.post("/commit", upload.fields([
       // Hitung KPI summary
       const summary = await uploadService.computeKpiSummary(batchId);
 
-      // Mark batch ready
-      await db.query("UPDATE upload_batch SET status='READY' WHERE id=?", [batchId]);
+      // Mark batch ready with row counts
+      await db.query(
+        "UPDATE upload_batch SET status='READY', row_count_ttr=?, row_count_sqm=? WHERE id=?",
+        [ttrRowCount, sqmRowCount, batchId]
+      );
 
       res.json({
         success: true,
@@ -176,8 +179,15 @@ router.post("/commit", upload.fields([
         },
       });
     } catch (error) {
-      // Rollback: tandai batch FAILED dan delete data yang sudah diinsert
-      await db.query("UPDATE upload_batch SET status='FAILED' WHERE id=?", [batchId]);
+      // Rollback: delete data and mark batch FAILED
+      try {
+        await db.query("DELETE FROM tickets_ttr WHERE upload_batch_id=?", [batchId]);
+        await db.query("DELETE FROM tickets_sqm WHERE upload_batch_id=?", [batchId]);
+        await db.query("DELETE FROM kpi_summary_snapshot WHERE upload_batch_id=?", [batchId]);
+        await db.query("UPDATE upload_batch SET status='FAILED' WHERE id=?", [batchId]);
+      } catch (_) {
+        // ignore rollback errors
+      }
       throw error;
     }
   } catch (error) {

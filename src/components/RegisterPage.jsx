@@ -1,9 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Eye, EyeOff, Radio, Wifi, Gauge } from "lucide-react";
-
-/* =========================================================================
-   REGISTER PAGE
-   ========================================================================= */
+import { register } from "../services/api.js";
 
 export default function RegisterPage({ onRegister, onBackToLogin }) {
   const [name, setName] = useState("");
@@ -13,6 +10,7 @@ export default function RegisterPage({ onRegister, onBackToLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [serverError, setServerError] = useState("");
 
   const nameValid = name.trim().length >= 3;
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -22,31 +20,28 @@ export default function RegisterPage({ onRegister, onBackToLogin }) {
   const nameError = touched && !nameValid ? "Nama minimal 3 karakter." : "";
   const emailError = touched && email.length === 0
     ? "Email tidak boleh kosong."
-    : touched && !emailValid
-    ? "Format email tidak valid."
-    : "";
+    : touched && !emailValid ? "Format email tidak valid." : "";
   const passwordError = touched && password.length === 0
     ? "Kata sandi tidak boleh kosong."
-    : touched && !passwordValid
-    ? "Kata sandi minimal 8 karakter."
-    : "";
+    : touched && !passwordValid ? "Kata sandi minimal 8 karakter." : "";
   const confirmError = touched && confirmPassword.length === 0
     ? "Konfirmasi kata sandi tidak boleh kosong."
-    : touched && !confirmValid
-    ? "Konfirmasi kata sandi tidak cocok."
-    : "";
+    : touched && !confirmValid ? "Konfirmasi kata sandi tidak cocok." : "";
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setTouched(true);
+    setServerError("");
     if (!nameValid || !emailValid || !passwordValid || !confirmValid) return;
     setSubmitting(true);
-    // TODO: ganti setTimeout ini dengan panggilan services/api.js (mis. register(name, email, password))
-    // begitu endpoint registrasi di backend Spring Boot sudah tersedia.
-    setTimeout(() => {
+    try {
+      const result = await register(name.trim(), email, password);
+      onRegister({ email: result.data.email, name: result.data.name, role: result.data.role });
+    } catch (err) {
+      setServerError(err.message || "Registrasi gagal. Coba lagi.");
+    } finally {
       setSubmitting(false);
-      onRegister({ email, name, role: "Branch Pekalongan" });
-    }, 500);
+    }
   };
 
   return (
@@ -112,6 +107,11 @@ export default function RegisterPage({ onRegister, onBackToLogin }) {
           <p className="text-sm text-gray-500 mb-8">Daftar untuk mulai memantau KPI IOAN Anda.</p>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            {serverError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs text-red-600">
+                {serverError}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-1.5">Nama Lengkap</label>
               <input

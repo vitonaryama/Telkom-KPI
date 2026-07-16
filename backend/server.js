@@ -52,8 +52,10 @@ const cors = require("cors");
 const path = require("path");
 
 const db = require("./config/database");
+const authMiddleware = require("./middleware/auth");
 const kpiRoutes = require("./routes/kpiRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -65,7 +67,7 @@ const PORT = process.env.PORT || 5000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || "*",
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",") : "http://localhost:5173",
   credentials: true,
 }));
 
@@ -89,8 +91,9 @@ app.get("/health", (req, res) => {
 });
 
 // API Routes
-app.use("/api/kpi", kpiRoutes);
-app.use("/api/upload", uploadRoutes);
+app.use("/api/kpi", authMiddleware, kpiRoutes);
+app.use("/api/upload", authMiddleware, uploadRoutes);
+app.use("/api/auth", authRoutes);
 
 // ============================================================================
 // ERROR HANDLING
@@ -120,7 +123,7 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: `Route ${req.method} ${req.path} tidak ditemukan` });
+  res.status(404).json({ error: "Route tidak ditemukan" });
 });
 
 // ============================================================================
@@ -151,10 +154,16 @@ async function startServer() {
       console.log("  GET  /api/kpi/trend?kpiName=X&area=Y → Trend KPI");
       console.log("  GET  /api/kpi/compare?batchOld=X&batchNew=Y → Bandingkan batch");
       console.log("  GET  /api/kpi/problems?batchId=X&kpiName=Y&area=Z → Drill-down");
+      console.log("  GET  /api/kpi/summary-by-sto?batchId=X&area=Y → STO breakdown");
       console.log("  POST /api/upload/validate             → Validasi file");
       console.log("  POST /api/upload/commit               → Upload & commit");
-      console.log("  GET  /api/batches                     → Daftar batch");
-      console.log("  GET  /api/batches/:id                 → Detail batch");
+      console.log("  GET  /api/upload                      → Daftar batch");
+      console.log("  GET  /api/upload/:id                  → Detail batch");
+      console.log("  POST /api/auth/register               → Registrasi user");
+      console.log("  POST /api/auth/login                  → Login");
+      console.log("  GET  /api/auth/me                     → Info user dari token");
+      console.log("  POST /api/auth/forgot-password        → Request reset");
+      console.log("  POST /api/auth/reset-password         → Set password baru");
       console.log("=".repeat(70) + "\n");
     });
   } catch (error) {

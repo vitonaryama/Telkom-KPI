@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { ArrowUp, ArrowDown } from "lucide-react";
 
 /* =========================================================================
@@ -76,16 +76,21 @@ export function TableSkeleton() {
   );
 }
 
-export const fmtPct = (n) => `${n.toFixed(1)}%`;
+export const fmtPct = (n) => {
+  const num = typeof n === "number" && !isNaN(n) ? n : 0;
+  return `${num.toFixed(1)}%`;
+};
 
 export function TrendValue({ value, target, trend }) {
-  const comply = value >= target;
+  const safeValue = typeof value === "number" && !isNaN(value) ? value : 0;
+  const comply = safeValue >= target;
   const color = comply ? "text-emerald-600" : "text-red-600";
-  const Arrow = trend === "up" ? ArrowUp : ArrowDown;
+  // Only show arrow if trend is explicitly set
+  const Arrow = trend === "up" ? ArrowUp : trend === "down" ? ArrowDown : null;
   return (
     <span className={`inline-flex items-center gap-0.5 font-medium tabular-nums ${color}`}>
-      {fmtPct(value)}
-      <Arrow size={12} strokeWidth={2.5} />
+      {fmtPct(safeValue)}
+      {Arrow && <Arrow size={12} strokeWidth={2.5} />}
     </span>
   );
 }
@@ -97,8 +102,8 @@ export function KpiCard({ label, value, target, unit = "%" }) {
   if (value >= target) status = "COMPLY";
   else if (value >= target - 2) status = "WARNING"; // Within 2% of target
 
-  let statusColors = "";
-  let valueColor = "";
+  let statusColors;
+  let valueColor;
 
   if (status === "COMPLY") {
     statusColors = "bg-emerald-100 text-emerald-700";

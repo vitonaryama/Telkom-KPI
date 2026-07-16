@@ -219,13 +219,20 @@ async function computeKpiSummary(batchId) {
 
   for (const area of AREAS) {
     // Service Availability
+    // SA% per area = avg across STOs of (1 - total_downtime_per_sto / jam_periode)
+    // Kita hitung SUM downtime per STO, lalu rata-rata SA% lintas STO di area tsb
     const sa_rows = await db.query(`
-      SELECT AVG(downtime_hours) as avg_downtime FROM tickets_ttr
+      SELECT sto, SUM(downtime_hours) as total_downtime FROM tickets_ttr
       WHERE upload_batch_id = ? AND area = ? AND wsa_exclude = 0
+      GROUP BY sto
     `, [batchId, area]);
-    if (sa_rows[0]?.avg_downtime !== null) {
-      const avg_downtime = sa_rows[0].avg_downtime || 0;
-      const sa_pct = 100.0 * (1 - avg_downtime / jam_periode);
+    if (sa_rows.length > 0) {
+      const sa_pcts = sa_rows.map((r) => {
+        const downtime = r.total_downtime || 0;
+        return Math.min(100.0 * (1 - downtime / jam_periode), 100);
+      });
+      const sa_pct = sa_pcts.reduce((a, b) => a + b, 0) / sa_pcts.length;
+      const avg_downtime = sa_rows.reduce((a, r) => a + (r.total_downtime || 0), 0) / sa_rows.length;
       const target = targets["Service Availability"];
       summary.push({
         area, kpi_name: "Service Availability",
@@ -272,7 +279,13 @@ async function computeKpiSummary(batchId) {
       const hvc = row.FLAG_HVC;
       if (hvc_to_comply[hvc]) {
         const [kpi_name, comply_col] = hvc_to_comply[hvc];
-        const comply_sum = row[`c${comply_col.slice(-1)}`] || row["c" + comply_col.slice(-2)] || 0;
+        const colMap = {
+          "comply3": "c3",
+          "comply6": "c6",
+          "comply12": "c12",
+          "comply24": "c24",
+        };
+        const comply_sum = row[colMap[comply_col]] || 0;
         const pct = 100.0 * comply_sum / row.cnt;
         const target = targets[kpi_name];
         summary.push({

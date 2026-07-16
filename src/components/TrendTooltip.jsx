@@ -1,5 +1,3 @@
-import React from "react";
-
 /**
  * TrendTooltip — Custom Recharts tooltip
  * Props (dari Recharts): active, payload, label

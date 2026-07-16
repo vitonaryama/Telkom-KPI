@@ -118,37 +118,37 @@ async function getProblemTickets(batchId, kpiName, area) {
     `;
   } else if (kpiName.startsWith("TTR")) {
     const comply_map = {
-      "TTR 3 Diamond": "comply3",
-      "TTR 6 Platinum": "comply6",
-      "TTR 12 Gold": "comply12",
-      "TTR 24 Non HVC": "comply24",
-      "TTR 3 Manja": null,
+      "TTR 3 Diamond": { col: "comply3", hvc: "HVC_DIAMOND" },
+      "TTR 6 Platinum": { col: "comply6", hvc: "HVC_PLATINUM" },
+      "TTR 12 Gold": { col: "comply12", hvc: "HVC_GOLD" },
+      "TTR 24 Non HVC": { col: "comply24", hvc: "REGULER" },
+      "TTR 3 Manja": { col: null, hvc: null },
     };
-    const comply_col = comply_map[kpiName];
-    if (!comply_col) throw new Error(`KPI ${kpiName} tidak dikenali`);
 
-    const where = kpiName === "TTR 3 Manja"
-      ? "t.is_kpi_ttr = 1 AND t.comply3_manja = 0"
-      : `t.is_kpi_ttr = 1 AND t.${comply_col} = 0 AND t.flag_hvc = ?`;
+    const complyInfo = comply_map[kpiName];
+    if (!complyInfo) throw new Error(`KPI ${kpiName} tidak dikenali`);
 
-    sql = `
-      SELECT t.trouble_no, t.sto, t.trouble_opentime, t.trouble_closetime
-      FROM tickets_ttr t
-      WHERE t.upload_batch_id = ? 
-        AND t.area = ?
-        AND ${where}
-      ORDER BY t.trouble_closetime DESC
-      LIMIT 50
-    `;
-
-    if (kpiName !== "TTR 3 Manja") {
-      const hvc_map = {
-        "TTR 3 Diamond": "HVC_DIAMOND",
-        "TTR 6 Platinum": "HVC_PLATINUM",
-        "TTR 12 Gold": "HVC_GOLD",
-        "TTR 24 Non HVC": "REGULER",
-      };
-      values.push(hvc_map[kpiName]);
+    if (kpiName === "TTR 3 Manja") {
+      sql = `
+        SELECT t.trouble_no, t.sto, t.trouble_opentime, t.trouble_closetime
+        FROM tickets_ttr t
+        WHERE t.upload_batch_id = ? 
+          AND t.area = ?
+          AND t.is_kpi_ttr = 1 AND t.comply3_manja = 0
+        ORDER BY t.trouble_closetime DESC
+        LIMIT 50
+      `;
+    } else {
+      sql = `
+        SELECT t.trouble_no, t.sto, t.trouble_opentime, t.trouble_closetime
+        FROM tickets_ttr t
+        WHERE t.upload_batch_id = ? 
+          AND t.area = ?
+          AND t.is_kpi_ttr = 1 AND t.${complyInfo.col} = 0 AND t.flag_hvc = ?
+        ORDER BY t.trouble_closetime DESC
+        LIMIT 50
+      `;
+      values.push(complyInfo.hvc);
     }
   } else if (kpiName === "SQM Close") {
     sql = `
@@ -201,6 +201,91 @@ async function getKpiTrend(kpiName, area, limit = 5) {
   return await db.query(sql, [kpiName, area, limit]);
 }
 
+/**
+ * Ambil ringkasan KPI per STO untuk satu batch dan area
+ * Digunakan untuk drill-down di tabel dashboard (expand area row)
+ */
+async function getKpiSummaryBySto(batchId, area) {
+  const batchInfo = await db.query(
+    "SELECT jumlah_hari_periode FROM upload_batch WHERE id = ?",
+    [batchId]
+  );
+  if (batchInfo.length === 0) throw new Error(`Batch ${batchId} tidak ditemukan`);
+  const jam_periode = batchInfo[0].jumlah_hari_periode * 24;
+
+  // TTR + Assurance per STO
+  const ttrRows = await db.query(`
+    SELECT
+      sto,
+      COUNT(*) AS total,
+      SUM(is_gamas) AS n_gamas,
+      SUM(CASE WHEN is_kpi_ttr=1 THEN comply3 ELSE 0 END) AS c3,
+      SUM(CASE WHEN is_kpi_ttr=1 THEN comply6 ELSE 0 END) AS c6,
+      SUM(CASE WHEN is_kpi_ttr=1 THEN comply12 ELSE 0 END) AS c12,
+      SUM(CASE WHEN is_kpi_ttr=1 THEN comply24 ELSE 0 END) AS c24,
+      SUM(CASE WHEN is_kpi_ttr=1 THEN comply3_manja ELSE 0 END) AS c3m,
+      SUM(CASE WHEN is_kpi_ttr=1 THEN 1 ELSE 0 END) AS kpi_total,
+      SUM(downtime_hours) AS total_downtime,
+      SUM(CASE WHEN wsa_exclude=0 THEN downtime_hours ELSE 0 END) AS downtime_excl
+    FROM tickets_ttr
+    WHERE upload_batch_id = ? AND area = ?
+    GROUP BY sto
+    ORDER BY sto
+  `, [batchId, area]);
+
+  // SQM per STO
+  const sqmRows = await db.query(`
+    SELECT
+      sto,
+      SUM(CASE WHEN mapping='Individual' AND is_assignment=1 AND is_hasil_ukur=1 THEN 1 ELSE 0 END) AS num,
+      SUM(CASE WHEN mapping NOT IN ('Gamas','Online','Di-Sisi-Plg') OR mapping IS NULL THEN 1 ELSE 0 END) AS denom
+    FROM tickets_sqm
+    WHERE upload_batch_id = ? AND area = ?
+    GROUP BY sto
+    ORDER BY sto
+  `, [batchId, area]);
+
+  const sqmMap = {};
+  for (const r of sqmRows) sqmMap[r.sto] = r;
+
+  const targets = {};
+  const targetRows = await db.query("SELECT kpi_name, target_pct FROM kpi_target");
+  for (const r of targetRows) targets[r.kpi_name] = r.target_pct;
+
+  const result = ttrRows.map((r) => {
+    const sqm = sqmMap[r.sto] || { num: 0, denom: 0 };
+    const availability = jam_periode > 0
+      ? Math.min(100 * (1 - (r.downtime_excl || 0) / jam_periode), 100)
+      : 100;
+    const assurance = r.total > 0 ? 100 * (1 - (r.n_gamas || 0) / r.total) : 100;
+    const kpiTotal = r.kpi_total || 0;
+    const ttr3 = kpiTotal > 0 ? 100 * (r.c3 || 0) / kpiTotal : 0;
+    const ttr6Jam = kpiTotal > 0 ? 100 * (r.c6 || 0) / kpiTotal : 0;
+    const ttr12Jam = kpiTotal > 0 ? 100 * (r.c12 || 0) / kpiTotal : 0;
+    const ttr24Jam = kpiTotal > 0 ? 100 * (r.c24 || 0) / kpiTotal : 0;
+    const ttr3JamM = kpiTotal > 0 ? 100 * (r.c3m || 0) / kpiTotal : 0;
+    const sqmPct = sqm.denom > 0 ? 100 * sqm.num / sqm.denom : 0;
+
+    return {
+      nama: `STO ${r.sto}`,
+      sto: r.sto,
+      metrics: {
+        availability: parseFloat(availability.toFixed(2)),
+        assurance: parseFloat(assurance.toFixed(2)),
+        ttr3: parseFloat(ttr3.toFixed(2)),
+        ttr6Jam: parseFloat(ttr6Jam.toFixed(2)),
+        ttr12Jam: parseFloat(ttr12Jam.toFixed(2)),
+        ttr24Jam: parseFloat(ttr24Jam.toFixed(2)),
+        ttr3JamM: parseFloat(ttr3JamM.toFixed(2)),
+        sqm: parseFloat(sqmPct.toFixed(2)),
+      },
+      trend: {},
+    };
+  });
+
+  return result;
+}
+
 module.exports = {
   getKpiSummary,
   getBatchInfo,
@@ -209,4 +294,5 @@ module.exports = {
   getProblemTickets,
   getOverviewStats,
   getKpiTrend,
+  getKpiSummaryBySto,
 };
