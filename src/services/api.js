@@ -91,9 +91,18 @@ export function getKpiOverview(batchId) {
   return request(`/kpi/overview?batchId=${batchId}`);
 }
 
-export function getKpiTrend(kpiName, area, limit = 5) {
-  const params = new URLSearchParams({ kpiName, area, limit });
+export function getKpiTrend(kpiName, area, granularity = "all", year = 0, month = 0, limit = 24) {
+  const params = new URLSearchParams({ kpiName, area, granularity, year, month, limit });
   return request(`/kpi/trend?${params}`);
+}
+
+export function getKpiTrendAll(kpiName, granularity = "all", year = 0, month = 0, limit = 24) {
+  const params = new URLSearchParams({ kpiName, granularity, year, month, limit });
+  return request(`/kpi/trend-all?${params}`);
+}
+
+export function getAvailablePeriods() {
+  return request("/kpi/periods");
 }
 
 export function compareBatches(batchOld, batchNew) {

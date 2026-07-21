@@ -156,17 +156,22 @@ export default function DashboardPage() {
   }, [search, area, witelData]);
 
   const overall = useMemo(() => {
-    if (useRealData && kpiData.length > 0) {
-      const result = {};
-      for (const row of kpiData) {
-        const shortKey = KPI_MAP[row.kpi_name];
-        if (shortKey && !(shortKey in result)) {
-          result[shortKey] = row.achieved_pct;
-        }
-      }
-      return result;
+    if (useRealData && overview && overview.overall_kpis) {
+      // Real data: gunakan overall_kpis dari API (average dari 4 area)
+      const kpis = overview.overall_kpis;
+      return {
+        availability: kpis["Service Availability"] || 0,
+        assurance: kpis["Assurance Guarantee"] || 0,
+        ttr3: kpis["TTR 3 Diamond"] || 0,
+        ttr6Jam: kpis["TTR 6 Platinum"] || 0,
+        ttr12Jam: kpis["TTR 12 Gold"] || 0,
+        ttr24Jam: kpis["TTR 24 Non HVC"] || 0,
+        ttr3JamM: kpis["TTR 3 Manja"] || 0,
+        sqm: kpis["SQM Close"] || 0,
+      };
     }
 
+    // Mock data: average dari 4 witel
     const n = WITEL_DATA.length;
     const sum = WITEL_DATA.reduce(
       (acc, w) => ({
@@ -191,7 +196,7 @@ export default function DashboardPage() {
       ttr3JamM: sum.ttr3JamM / n,
       sqm: sum.sqm / n,
     };
-  }, [useRealData, kpiData, overview]);
+  }, [useRealData, overview]);
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId);
 
@@ -233,7 +238,7 @@ export default function DashboardPage() {
           Array.from({ length: 8 }).map((_, i) => <KpiCardSkeleton key={i} />)
         ) : (
           <>
-            <KpiCard label="SERVICE AVAILABILITY" value={overall.availability || overall.achievement_rate || 0} target={TARGETS.availability} />
+            <KpiCard label="SERVICE AVAILABILITY" value={overall.availability || 0} target={TARGETS.availability} />
             <KpiCard label="ASSURANCE GUARANTEE" value={overall.assurance || 0} target={TARGETS.assurance} />
             <KpiCard label="TTR 3 JAM D" value={overall.ttr3 || 0} target={TARGETS.ttr3} />
             <KpiCard label="TTR 6 JAM" value={overall.ttr6Jam || 0} target={TARGETS.ttr6Jam} />

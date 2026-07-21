@@ -247,6 +247,9 @@ router.get("/", async (req, res, next) => {
 router.get("/:id", async (req, res, next) => {
   try {
     const batchId = parseInt(req.params.id);
+    if (isNaN(batchId)) {
+      return res.status(404).json({ error: "Batch tidak ditemukan" });
+    }
     const batch = await db.query(
       "SELECT * FROM upload_batch WHERE id=?",
       [batchId]

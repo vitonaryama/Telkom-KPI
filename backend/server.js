@@ -111,6 +111,22 @@ app.use((err, req, res, next) => {
     return res.status(400).json({ error: err.message });
   }
 
+  if (err.message.includes("File CSV kosong")) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (err.message.includes("Tidak ada baris yang cocok")) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (err.message.includes("Bind parameters must not contain undefined")) {
+    return res.status(400).json({ error: "Format data tidak valid — ada kolom wajib yang kosong atau bernilai null" });
+  }
+
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({ error: `File terlalu besar. Maksimum ${Math.round((parseInt(process.env.MAX_FILE_SIZE)||26214400)/1024/1024)} MB` });
+  }
+
   if (err.message.includes("tidak ditemukan")) {
     return res.status(404).json({ error: err.message });
   }

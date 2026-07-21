@@ -38,13 +38,26 @@ export default function App() {
     const savedUser = localStorage.getItem("kpi_user");
     const savedToken = localStorage.getItem("kpi_token");
     if (savedUser && savedToken) {
-      try {
-        setUser(JSON.parse(savedUser));
-        setAuthed(true);
-      } catch {
-        localStorage.removeItem("kpi_user");
-        localStorage.removeItem("kpi_token");
-      }
+      // Validate token with backend before restoring auth state
+      import("./services/api.js").then(({ getMe }) => {
+        getMe()
+          .then((result) => {
+            if (result.success && result.data) {
+              // Token valid, restore auth state
+              setUser(result.data);
+              setAuthed(true);
+            } else {
+              // Token invalid, clear storage
+              localStorage.removeItem("kpi_user");
+              localStorage.removeItem("kpi_token");
+            }
+          })
+          .catch(() => {
+            // Token expired or network error, clear storage
+            localStorage.removeItem("kpi_user");
+            localStorage.removeItem("kpi_token");
+          });
+      });
     }
   }, []);
 

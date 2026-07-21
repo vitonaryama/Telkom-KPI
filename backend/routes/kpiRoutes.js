@@ -61,32 +61,74 @@ router.get("/overview", async (req, res, next) => {
 
 /**
  * GET /api/kpi/trend
- * Trend satu KPI di area tertentu (5 batch terakhir)
+ * Trend satu KPI di area tertentu, bisa difilter by tahun/bulan
  *
  * Query params:
- *   - kpiName (required): nama KPI
- *   - area (required): area
- *   - limit (optional): berapa batch yang diambil (default 5)
- *
- * Response:
- *   [
- *     { id, periode_awal, periode_akhir, achieved_pct, target_pct },
- *     ...
- *   ]
+ *   - kpiName      (required): nama KPI
+ *   - area         (required): area uppercase
+ *   - granularity  (optional): "weekly" | "monthly" | "all" (default "all")
+ *   - year         (optional): filter tahun (0 = semua)
+ *   - month        (optional): filter bulan 1-12 (0 = semua)
+ *   - limit        (optional): max rows (default 24)
  */
 router.get("/trend", async (req, res, next) => {
   try {
-    const { kpiName, area, limit } = req.query;
+    const { kpiName, area, granularity, year, month, limit } = req.query;
     if (!kpiName || !area) {
       return res.status(400).json({ error: "Query params 'kpiName' dan 'area' wajib diisi" });
     }
-
     const trend = await kpiService.getKpiTrend(
-      kpiName,
-      area,
-      parseInt(limit) || 5
+      kpiName, area,
+      granularity || "all",
+      parseInt(year)  || 0,
+      parseInt(month) || 0,
+      parseInt(limit) || 24
     );
     res.json({ success: true, data: trend });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/kpi/trend-all
+ * Trend satu KPI untuk semua 4 area sekaligus
+ *
+ * Query params:
+ *   - kpiName      (required): nama KPI
+ *   - granularity  (optional): "weekly" | "monthly" | "all"
+ *   - year         (optional): filter tahun
+ *   - month        (optional): filter bulan
+ *   - limit        (optional): max batch per area (default 24)
+ */
+router.get("/trend-all", async (req, res, next) => {
+  try {
+    const { kpiName, granularity, year, month, limit } = req.query;
+    if (!kpiName) {
+      return res.status(400).json({ error: "Query param 'kpiName' wajib diisi" });
+    }
+    const trend = await kpiService.getKpiTrendAllAreas(
+      kpiName,
+      granularity || "all",
+      parseInt(year)  || 0,
+      parseInt(month) || 0,
+      parseInt(limit) || 24
+    );
+    res.json({ success: true, data: trend });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/kpi/periods
+ * Ambil daftar tahun dan bulan yang tersedia di DB
+ * Dipakai untuk populate dropdown filter di frontend
+ */
+router.get("/periods", async (req, res, next) => {
+  try {
+    const periods = await kpiService.getAvailablePeriods();
+    res.json({ success: true, data: periods });
   } catch (error) {
     next(error);
   }
