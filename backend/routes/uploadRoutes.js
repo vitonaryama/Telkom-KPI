@@ -10,6 +10,7 @@ const path = require("path");
 const fs = require("fs");
 const uploadService = require("../services/uploadService");
 const db = require("../config/database");
+const { requireRole } = require("../middleware/auth");
 
 // Konfigurasi multer
 const uploadDir = process.env.UPLOAD_DIR || "./uploads";
@@ -54,7 +55,7 @@ const upload = multer({
  * Response:
  *   { success, valid_rows, total_rows, message }
  */
-router.post("/validate", upload.single("file"), async (req, res, next) => {
+router.post("/validate", requireRole("admin"), upload.single("file"), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "File tidak diunggah" });
@@ -105,7 +106,7 @@ router.post("/validate", upload.single("file"), async (req, res, next) => {
  * Response:
  *   { success, batchId, message, summary: [ { area, kpi_name, achieved_pct, ... }, ... ] }
  */
-router.post("/commit", upload.fields([
+router.post("/commit", requireRole("admin"), upload.fields([
   { name: "tiketCloseFile", maxCount: 1 },
   { name: "sqmFile", maxCount: 1 },
 ]), async (req, res, next) => {
@@ -241,7 +242,7 @@ router.get("/", async (req, res, next) => {
  * DELETE /api/batches/:id
  * Hapus batch beserta data tiket dan summary yang terkait
  */
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", requireRole("admin"), async (req, res, next) => {
   try {
     const batchId = parseInt(req.params.id);
     if (isNaN(batchId)) {

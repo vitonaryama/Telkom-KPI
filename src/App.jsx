@@ -79,6 +79,16 @@ export default function App() {
     setAuthView("login");
   };
 
+  // Route guard: redirect non-admin ke dashboard jika coba akses halaman upload
+  const handleSetPage = (newPage) => {
+    if (newPage === "upload" && user?.role !== "admin") {
+      addNotification("Anda tidak memiliki hak akses untuk mengakses halaman Upload.", "error");
+      setPage("dashboard");
+      return;
+    }
+    setPage(newPage);
+  };
+
   if (!authed) {
     if (authView === "register") {
       return (
@@ -112,6 +122,10 @@ export default function App() {
     );
   }
 
+  const isAdmin = user?.role === "admin";
+  // Pastikan page yang aktif valid untuk role user saat ini
+  const safePage = page === "upload" && !isAdmin ? "dashboard" : page;
+
   const today = new Date().toLocaleDateString("id-ID", {
     weekday: "long",
     year: "numeric",
@@ -121,18 +135,22 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex bg-gray-50 font-sans">
-      <Sidebar page={page} setPage={setPage} onLogout={handleLogout} />
+      <Sidebar page={safePage} setPage={handleSetPage} onLogout={handleLogout} user={user} />
       <div className="flex-1 flex flex-col min-h-screen">
         <Navbar
-          title={page === "dashboard" ? "Dashboard KPI Branch Pekalongan" : "Upload Excel"}
-          subtitle={page === "dashboard" ? today : null}
+          title={safePage === "dashboard" ? "Dashboard KPI Branch Pekalongan" : "Upload Excel"}
+          subtitle={safePage === "dashboard" ? today : null}
           user={user}
           notifications={notifications}
         />
         <ErrorBoundary>
-          {page === "dashboard"
+          {safePage === "dashboard"
             ? <DashboardPage />
-            : <UploadExcelPage onUploadSuccess={(msg) => addNotification(msg)} onUploadError={(msg) => addNotification(msg, "error")} />
+            : <UploadExcelPage
+                user={user}
+                onUploadSuccess={(msg) => addNotification(msg)}
+                onUploadError={(msg) => addNotification(msg, "error")}
+              />
           }
         </ErrorBoundary>
       </div>

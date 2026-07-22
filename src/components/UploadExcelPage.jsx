@@ -1,12 +1,28 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   UploadCloud, FileSpreadsheet, CheckCircle2, XCircle, Trash2,
-  AlertTriangle, HelpCircle, X, Loader2, Eye,
+  AlertTriangle, HelpCircle, X, Loader2, Eye, ShieldOff,
 } from "lucide-react";
 import StorageDonut from "./StorageDonut.jsx";
 import { uploadCommit, getBatches, validateFile, deleteBatch } from "../services/api.js";
 
-export default function UploadExcelPage({ onUploadSuccess, onUploadError }) {
+export default function UploadExcelPage({ onUploadSuccess, onUploadError, user }) {
+  // Guard: Tampilkan halaman akses ditolak jika bukan admin
+  if (!user || user.role !== "admin") {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-10 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+          <ShieldOff size={32} className="text-red-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-800">Akses Ditolak</h2>
+        <p className="text-sm text-gray-500 max-w-sm">
+          Anda tidak memiliki hak akses untuk menggunakan fitur Upload Data.
+          Fitur ini hanya tersedia untuk Administrator.
+        </p>
+      </div>
+    );
+  }
+
   const [dragOver, setDragOver] = useState(false);
   const [files, setFiles] = useState([]);
   const [error, setError] = useState(null);

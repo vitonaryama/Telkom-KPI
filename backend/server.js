@@ -13,7 +13,7 @@ const cors = require("cors");
 const path = require("path");
 
 const db = require("./config/database");
-const authMiddleware = require("./middleware/auth");
+const { authMiddleware } = require("./middleware/auth");
 const kpiRoutes = require("./routes/kpiRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const authRoutes = require("./routes/authRoutes");

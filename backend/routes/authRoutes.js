@@ -14,7 +14,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const db = require("../config/database");
-const authMiddleware = require("../middleware/auth");
+const { authMiddleware } = require("../middleware/auth");
 
 const JWT_SECRET = process.env.JWT_SECRET || "kpi-dashboard-secret-key-change-in-production";
 const JWT_EXPIRES = process.env.JWT_EXPIRES || "24h";

@@ -31,6 +31,10 @@ async function request(path, options = {}) {
     throw new Error("Sesi berakhir, silakan login kembali");
   }
 
+  if (res.status === 403) {
+    throw new Error("Anda tidak memiliki hak akses untuk melakukan tindakan ini.");
+  }
+
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
