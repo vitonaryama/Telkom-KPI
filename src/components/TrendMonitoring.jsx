@@ -223,22 +223,71 @@ export default function TrendMonitoring() {
         };
 
       } else {
-        // Satu area — rawData array of { id, periode_awal, periode_akhir, achieved_pct, target_pct }
+        // Satu area — rawData array of { id, periode_awal, periode_akhir, achieved_pct, target_pct, available_stos, WIRADESA, ... }
         const entityLabel = region; // "Pekalongan"
+        const avgLabel = `${entityLabel} (Rata-rata Area)`;
+        
+        let activeStos = [];
+        if (sto === "Semua STO") {
+          // Kumpulkan semua STO unik dari semua batch
+          const stoSet = new Set();
+          rawData.forEach(r => {
+            if (r.available_stos) r.available_stos.forEach(s => stoSet.add(s));
+          });
+          activeStos = Array.from(stoSet);
+        } else {
+          activeStos = [sto];
+        }
 
-        const chartDataBuilt = rawData.map(row => ({
-          date:           formatPeriodeLabel(row.periode_akhir, row.periode_awal),
-          [entityLabel]:  parseFloat(row.achieved_pct) || 0,
-          Target:         parseFloat(row.target_pct || activeKpi.target),
-          batchId:        row.id,
-          isAchieved:     row.is_achieved,
-        }));
+        const chartDataBuilt = rawData.map(row => {
+          const point = {
+            date:           formatPeriodeLabel(row.periode_akhir, row.periode_awal),
+            Target:         parseFloat(row.target_pct || activeKpi.target),
+            batchId:        row.id,
+            isAchieved:     row.is_achieved,
+          };
+          
+          if (sto === "Semua STO") {
+            point[avgLabel] = parseFloat(row.achieved_pct) || 0;
+          }
 
-        const linesBuilt = [{
-          key:   entityLabel,
-          name:  entityLabel,
-          color: REGION_COLORS[entityLabel] || "#2563eb",
-        }];
+          activeStos.forEach(s => {
+            const searchStr = s.replace(/^STO\s+/i, "");
+            const backendKey = Object.keys(row).find(k => k.toLowerCase() === searchStr.toLowerCase());
+            if (backendKey && row[backendKey] !== undefined) {
+              point[s] = parseFloat(row[backendKey]);
+            }
+          });
+
+          return point;
+        });
+
+        const linesBuilt = [];
+        
+        // Generate warna acak/teratur untuk STO jika belum ada di REGION_COLORS
+        const generateColor = (str) => {
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+          }
+          return `hsl(${Math.abs(hash) % 360}, 70%, 50%)`;
+        };
+
+        if (sto === "Semua STO") {
+          linesBuilt.push({
+            key:   avgLabel,
+            name:  avgLabel,
+            color: REGION_COLORS[entityLabel] || "#2563eb",
+          });
+        }
+        
+        activeStos.forEach(s => {
+          linesBuilt.push({
+            key:   s,
+            name:  s,
+            color: REGION_COLORS[s] || generateColor(s),
+          });
+        });
 
         return {
           chartData: chartDataBuilt,
@@ -351,20 +400,13 @@ export default function TrendMonitoring() {
         <KpiCard label="TERENDAH"   value={stats.min} target={activeKpi.target} />
       </div>
 
-      {/* Info saat STO dipilih */}
-      {sto !== "Semua STO" && (
-        <div className="mx-6 mt-4 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-          <span className="font-semibold">Info:</span> Trend ditampilkan per area <strong>{region}</strong>.
-          KPI dihitung per area, bukan per STO individual.
-        </div>
-      )}
 
       {/* Chart */}
       <div className="p-6 relative min-h-[400px]">
         {dataLoading && (
           <div className="absolute inset-0 z-10 bg-white/90 backdrop-blur-[2px] flex items-end justify-between p-10 rounded-b-xl gap-4 pb-16">
             {[40, 70, 30, 90, 50, 80].map((h, i) => (
-              <Skeleton key={i} className={`w-full h-[${h}%]`} />
+              <Skeleton key={i} className="w-full" style={{ height: h + "%" }} />
             ))}
           </div>
         )}
@@ -393,4 +435,4 @@ export default function TrendMonitoring() {
       </div>
     </div>
   );
-}
+        }

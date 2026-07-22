@@ -88,7 +88,7 @@ export default function TrendChart({ data, lines, target, hiddenLines, onToggleL
               name={line.name}
               stroke={line.color}
               strokeWidth={2}
-              dot={false}
+              dot={data.length === 1 ? { r: 4, strokeWidth: 2, fill: '#fff', stroke: line.color } : false}
               activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
               isAnimationActive={true}
               animationDuration={1000}

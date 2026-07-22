@@ -37,8 +37,8 @@ export function useCountUp(endValue, duration = 300) {
   return count;
 }
 
-export function Skeleton({ className }) {
-  return <div className={`animate-pulse bg-slate-200 rounded-md ${className}`} />;
+export function Skeleton({ className, ...props }) {
+  return <div className={`animate-pulse bg-slate-200 rounded-md ${className}`} {...props} />;
 }
 
 export function KpiCardSkeleton() {

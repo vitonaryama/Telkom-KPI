@@ -291,12 +291,11 @@ async function computeKpiSummary(batchId) {
   };
 
   const summary = [];
+  const summary_sto = [];
 
   for (const area of AREAS) {
     // Service Availability
     // SA% per area = average dari SA% per STO
-    // Formula: untuk setiap STO, hitung SA% = 100 * (1 - SUM(downtime) / jam_periode)
-    // Lalu rata-ratakan SA% semua STO di area tersebut
     const sa_rows = await db.query(`
       SELECT sto, SUM(downtime_hours) as total_downtime, COUNT(*) as ticket_count
       FROM tickets_ttr
@@ -308,15 +307,24 @@ async function computeKpiSummary(batchId) {
       const sto_avg_downtime = sa_rows.map(r => {
         const total = Number(r.total_downtime) || 0;
         const cnt = Number(r.ticket_count) || 1;
-        return total / cnt;   // ✅ rata-rata downtime per tiket di STO ini
+        const avgD = total / cnt;
+        
+        // Push STO level data
+        const sto_sa_pct = Math.max(0, Math.min(100, 100.0 * (1 - avgD / jam_periode)));
+        const target = targets["Service Availability"];
+        summary_sto.push({
+          area, sto: r.sto, kpi_name: "Service Availability",
+          numerator: parseFloat(avgD.toFixed(4)), denominator: jam_periode,
+          achieved_pct: parseFloat(sto_sa_pct.toFixed(2)), target_pct: target,
+          is_achieved: sto_sa_pct >= target ? 1 : 0,
+        });
+        return avgD;
       });
 
       const sa_pcts = sto_avg_downtime.map(avgD =>
         Math.max(0, Math.min(100, 100.0 * (1 - avgD / jam_periode)))
       );
       const sa_pct = sa_pcts.reduce((a, b) => a + b, 0) / sa_pcts.length;
-
-      // rata-rata dari rata-rata per STO (bukan sum semua dibagi jumlah STO)
       const avg_downtime = sto_avg_downtime.reduce((a, b) => a + b, 0) / sto_avg_downtime.length;
       
       const target = targets["Service Availability"];
@@ -331,40 +339,59 @@ async function computeKpiSummary(batchId) {
     }
 
     // Assurance Guarantee
-    // AG% per area = pooled ratio (total non-gamas / total tiket)
     const ag_rows = await db.query(`
-      SELECT COUNT(*) as total, SUM(is_gamas) as n_gamas
+      SELECT sto, COUNT(*) as total, SUM(is_gamas) as n_gamas
       FROM tickets_ttr
       WHERE upload_batch_id = ? AND area = ?
+      GROUP BY sto
     `, [batchId, area]);
     
-    if (ag_rows.length > 0 && ag_rows[0].total > 0) {
-      const total = Number(ag_rows[0].total) || 0;
-      const n_gamas = Number(ag_rows[0].n_gamas) || 0;
-      const ag_pct = total > 0 ? 100.0 * (1 - n_gamas / total) : 100;
-      const target = targets["Assurance Guarantee"];
-      summary.push({
-        area, kpi_name: "Assurance Guarantee",
-        numerator: total - n_gamas,
-        denominator: total,
-        achieved_pct: parseFloat(ag_pct.toFixed(2)),
-        target_pct: target,
-        is_achieved: ag_pct >= target ? 1 : 0,
+    if (ag_rows.length > 0) {
+      let area_total = 0;
+      let area_gamas = 0;
+
+      ag_rows.forEach(r => {
+        const total = Number(r.total) || 0;
+        const n_gamas = Number(r.n_gamas) || 0;
+        area_total += total;
+        area_gamas += n_gamas;
+
+        if (total > 0) {
+          const ag_pct = 100.0 * (1 - n_gamas / total);
+          const target = targets["Assurance Guarantee"];
+          summary_sto.push({
+            area, sto: r.sto, kpi_name: "Assurance Guarantee",
+            numerator: total - n_gamas, denominator: total,
+            achieved_pct: parseFloat(ag_pct.toFixed(2)), target_pct: target,
+            is_achieved: ag_pct >= target ? 1 : 0,
+          });
+        }
       });
+
+      if (area_total > 0) {
+        const ag_pct = 100.0 * (1 - area_gamas / area_total);
+        const target = targets["Assurance Guarantee"];
+        summary.push({
+          area, kpi_name: "Assurance Guarantee",
+          numerator: area_total - area_gamas,
+          denominator: area_total,
+          achieved_pct: parseFloat(ag_pct.toFixed(2)),
+          target_pct: target,
+          is_achieved: ag_pct >= target ? 1 : 0,
+        });
+      }
     }
 
     // TTR 3/6/12/24 per HVC category
-    // TTR% per area = pooled ratio (total comply / total count per HVC)
     const ttr_rows = await db.query(`
-      SELECT flag_hvc, COUNT(*) as cnt,
+      SELECT sto, flag_hvc, COUNT(*) as cnt,
              SUM(comply3) as c3, SUM(comply6) as c6,
              SUM(comply12) as c12, SUM(comply24) as c24
       FROM tickets_ttr
       WHERE upload_batch_id = ? AND area = ? AND is_kpi_ttr = 1
-      GROUP BY flag_hvc
+      GROUP BY sto, flag_hvc
     `, [batchId, area]);
 
-    // Group by HVC category
     const hvcGroups = {};
     for (const row of ttr_rows) {
       const hvc = row.flag_hvc;
@@ -375,40 +402,44 @@ async function computeKpiSummary(batchId) {
     for (const [hvc, rows] of Object.entries(hvcGroups)) {
       if (hvc_to_comply[hvc]) {
         const [kpi_name, comply_col] = hvc_to_comply[hvc];
-        const colMap = {
-          "comply3": "c3",
-          "comply6": "c6",
-          "comply12": "c12",
-          "comply24": "c24",
-        };
-        
-        // Pooled ratio: total comply / total count
-        const total_comply = rows.reduce((a, r) => {
-          const val = Number(r[colMap[comply_col]]);
-          return a + (isNaN(val) ? 0 : val);
-        }, 0);
-        
-        const total_cnt = rows.reduce((a, r) => {
-          const val = Number(r.cnt);
-          return a + (isNaN(val) ? 0 : val);
-        }, 0);
-        
-        const pct = total_cnt > 0 ? 100.0 * total_comply / total_cnt : 0;
+        const colMap = { "comply3": "c3", "comply6": "c6", "comply12": "c12", "comply24": "c24" };
         const target = targets[kpi_name];
         
-        summary.push({
-          area, kpi_name,
-          numerator: parseInt(total_comply),
-          denominator: total_cnt,
-          achieved_pct: parseFloat(pct.toFixed(2)),
-          target_pct: target,
-          is_achieved: pct >= target ? 1 : 0,
+        let area_comply = 0;
+        let area_cnt = 0;
+
+        rows.forEach(r => {
+          const c = Number(r[colMap[comply_col]]) || 0;
+          const cnt = Number(r.cnt) || 0;
+          area_comply += c;
+          area_cnt += cnt;
+
+          if (cnt > 0) {
+            const pct = 100.0 * c / cnt;
+            summary_sto.push({
+              area, sto: r.sto, kpi_name,
+              numerator: c, denominator: cnt,
+              achieved_pct: parseFloat(pct.toFixed(2)), target_pct: target,
+              is_achieved: pct >= target ? 1 : 0,
+            });
+          }
         });
+
+        if (area_cnt > 0) {
+          const pct = 100.0 * area_comply / area_cnt;
+          summary.push({
+            area, kpi_name,
+            numerator: area_comply,
+            denominator: area_cnt,
+            achieved_pct: parseFloat(pct.toFixed(2)),
+            target_pct: target,
+            is_achieved: pct >= target ? 1 : 0,
+          });
+        }
       }
     }
 
     // TTR 3 Jam Manja (lintas semua kategori HVC)
-    // TTR 3 Manja% per area = average dari TTR 3 Manja% per STO
     const manja_rows = await db.query(`
       SELECT sto, COUNT(*) as cnt, SUM(CASE WHEN downtime_hours <= 3 THEN 1 ELSE 0 END) as c3m
       FROM tickets_ttr
@@ -417,57 +448,79 @@ async function computeKpiSummary(batchId) {
     `, [batchId, area]);
 
     if (manja_rows.length > 0) {
+      let area_c3m = 0;
+      let area_cnt = 0;
+      const target = targets["TTR 3 Manja"];
+
       const pcts = manja_rows.map(r => {
         const cnt = Number(r.cnt) || 0;
         const c3m = Number(r.c3m) || 0;
-        return cnt > 0 ? 100.0 * c3m / cnt : 0;
+        area_c3m += c3m;
+        area_cnt += cnt;
+
+        const sto_pct = cnt > 0 ? 100.0 * c3m / cnt : 0;
+        if (cnt > 0) {
+          summary_sto.push({
+            area, sto: r.sto, kpi_name: "TTR 3 Manja",
+            numerator: c3m, denominator: cnt,
+            achieved_pct: parseFloat(sto_pct.toFixed(2)), target_pct: target,
+            is_achieved: sto_pct >= target ? 1 : 0,
+          });
+        }
+        return sto_pct;
       });
-      const pct = pcts.reduce((a, b) => a + b, 0) / pcts.length;
-      
-      // Force numeric conversion untuk mencegah string concatenation
-      const total_c3m = manja_rows.reduce((a, r) => {
-        const val = Number(r.c3m);
-        return a + (isNaN(val) ? 0 : val);
-      }, 0);
-      
-      const total_cnt = manja_rows.reduce((a, r) => {
-        const val = Number(r.cnt);
-        return a + (isNaN(val) ? 0 : val);
-      }, 0);
-      
-      const target = targets["TTR 3 Manja"];
-      summary.push({
-        area, kpi_name: "TTR 3 Manja",
-        numerator: parseInt(total_c3m),
-        denominator: total_cnt,
-        achieved_pct: parseFloat(pct.toFixed(2)),
-        target_pct: target,
-        is_achieved: pct >= target ? 1 : 0,
-      });
+
+      if (area_cnt > 0) {
+        const pct = pcts.reduce((a, b) => a + b, 0) / pcts.length;
+        summary.push({
+          area, kpi_name: "TTR 3 Manja",
+          numerator: parseInt(area_c3m),
+          denominator: area_cnt,
+          achieved_pct: parseFloat(pct.toFixed(2)),
+          target_pct: target,
+          is_achieved: pct >= target ? 1 : 0,
+        });
+      }
     }
 
     // SQM Close
-    // SQM% per area = pooled ratio (total eligible / total denominator)
-    // Numerator: MAPPING IS NULL ATAU 'Individual' dengan IS_ASSIGNMENT=1 DAN IS_HASIL_UKUR=1
-    // Denominator: Total - Gamas - Gamas-non-sqm - Online - Di-Sisi-Plg
     const sqm_rows = await db.query(`
-      SELECT SUM(CASE WHEN (mapping IS NULL OR mapping='Individual') AND is_assignment=1 AND is_hasil_ukur=1 THEN 1 ELSE 0 END) as num,
+      SELECT sto,
+             SUM(CASE WHEN (mapping IS NULL OR mapping='Individual') AND is_assignment=1 AND is_hasil_ukur=1 THEN 1 ELSE 0 END) as num,
              SUM(CASE WHEN mapping NOT IN ('Gamas','Online','Di-Sisi-Plg','Gamas-non-sqm') OR mapping IS NULL THEN 1 ELSE 0 END) as denom
       FROM tickets_sqm
       WHERE upload_batch_id = ? AND area = ?
+      GROUP BY sto
     `, [batchId, area]);
     
     if (sqm_rows.length > 0) {
-      const total_num = Number(sqm_rows[0].num) || 0;
-      const total_denom = Number(sqm_rows[0].denom) || 0;
-      
-      if (total_denom > 0) {
-        const pct = 100.0 * total_num / total_denom;
-        const target = targets["SQM Close"];
+      let area_num = 0;
+      let area_denom = 0;
+      const target = targets["SQM Close"];
+
+      sqm_rows.forEach(r => {
+        const num = Number(r.num) || 0;
+        const denom = Number(r.denom) || 0;
+        area_num += num;
+        area_denom += denom;
+
+        if (denom > 0) {
+          const pct = 100.0 * num / denom;
+          summary_sto.push({
+            area, sto: r.sto, kpi_name: "SQM Close",
+            numerator: num, denominator: denom,
+            achieved_pct: parseFloat(pct.toFixed(2)), target_pct: target,
+            is_achieved: pct >= target ? 1 : 0,
+          });
+        }
+      });
+
+      if (area_denom > 0) {
+        const pct = 100.0 * area_num / area_denom;
         summary.push({
           area, kpi_name: "SQM Close",
-          numerator: parseInt(total_num),
-          denominator: parseInt(total_denom),
+          numerator: parseInt(area_num),
+          denominator: parseInt(area_denom),
           achieved_pct: parseFloat(pct.toFixed(2)),
           target_pct: target,
           is_achieved: pct >= target ? 1 : 0,
@@ -482,31 +535,22 @@ async function computeKpiSummary(batchId) {
     console.log(`  ${row.area} - ${row.kpi_name}: ${row.numerator}/${row.denominator} = ${row.achieved_pct}%`);
   });
 
-  // Insert into kpi_summary_snapshot
+  // Insert into kpi_summary_snapshot and kpi_summary_sto_snapshot
   await db.transaction(async (connection) => {
     for (const row of summary) {
-      // Validasi dan sanitasi nilai sebelum insert
-      const numerator = isNaN(row.numerator) || row.numerator === null ? 0 : parseFloat(row.numerator);
-      const denominator = isNaN(row.denominator) || row.denominator === null ? 1 : parseFloat(row.denominator);
-      const achieved_pct = isNaN(row.achieved_pct) || row.achieved_pct === null ? 0 : parseFloat(row.achieved_pct);
-      const target_pct = isNaN(row.target_pct) || row.target_pct === null ? 0 : parseFloat(row.target_pct);
-      const is_achieved = row.is_achieved ? 1 : 0;
-
-      // Debug logging
-      if (Math.abs(numerator) > 99999999 || Math.abs(denominator) > 99999999) {
-        console.error(`ERROR - Out of range values detected:`);
-        console.error(`  KPI: ${row.kpi_name}, Area: ${row.area}`);
-        console.error(`  numerator: ${numerator} (original: ${row.numerator})`);
-        console.error(`  denominator: ${denominator} (original: ${row.denominator})`);
-        console.error(`  achieved_pct: ${achieved_pct}, target_pct: ${target_pct}`);
-        throw new Error(`Numerator or Denominator out of range for ${row.kpi_name} in ${row.area}`);
-      }
-
       await connection.execute(`
         INSERT INTO kpi_summary_snapshot
           (upload_batch_id, area, kpi_name, numerator, denominator, achieved_pct, target_pct, is_achieved)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [batchId, row.area, row.kpi_name, numerator, denominator, achieved_pct, target_pct, is_achieved]);
+      `, [batchId, row.area, row.kpi_name, row.numerator, row.denominator, row.achieved_pct, row.target_pct, row.is_achieved]);
+    }
+
+    for (const row of summary_sto) {
+      await connection.execute(`
+        INSERT INTO kpi_summary_sto_snapshot
+          (upload_batch_id, area, sto, kpi_name, numerator, denominator, achieved_pct, target_pct, is_achieved)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [batchId, row.area, row.sto, row.kpi_name, row.numerator, row.denominator, row.achieved_pct, row.target_pct, row.is_achieved]);
     }
   });
 
@@ -519,6 +563,7 @@ async function computeKpiSummary(batchId) {
 async function deleteBatch(batchId) {
   // Kita gunakan manual transaction untuk memastikan semua query sukses sebelum commit
   await db.transaction(async (connection) => {
+    await connection.execute("DELETE FROM kpi_summary_sto_snapshot WHERE upload_batch_id = ?", [batchId]);
     await connection.execute("DELETE FROM kpi_summary_snapshot WHERE upload_batch_id = ?", [batchId]);
     await connection.execute("DELETE FROM tickets_ttr WHERE upload_batch_id = ?", [batchId]);
     await connection.execute("DELETE FROM tickets_sqm WHERE upload_batch_id = ?", [batchId]);

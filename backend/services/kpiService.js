@@ -256,7 +256,7 @@ async function getOverviewStats(batchId) {
 }
 
 /**
- * Trend KPI: lihat perubahan satu KPI di area tertentu lintas batch
+ * Trend KPI: lihat perubahan satu KPI di area tertentu lintas batch, beserta STO-nya
  * @param {string} kpiName
  * @param {string} area        - uppercase area name (PEKALONGAN, dll)
  * @param {string} granularity - "weekly" | "monthly" | "all"
@@ -340,7 +340,75 @@ async function getKpiTrend(kpiName, area, granularity = "all", year = 0, month =
     params.push(limit);
   }
 
-  return await db.query(sql, params);
+  let area_results = await db.query(sql, params);
+  
+  // Ambil STO data dan gabungkan
+  let sto_sql;
+  
+  if (granularity === "weekly") {
+    sto_sql = `
+      SELECT
+        YEARWEEK(b.periode_akhir, 1) as week_key,
+        ks.sto,
+        AVG(ks.achieved_pct) as achieved_pct
+      FROM kpi_summary_sto_snapshot ks
+      JOIN upload_batch b ON b.id = ks.upload_batch_id
+      WHERE ks.kpi_name = ? AND ks.area = ? AND b.status = 'READY'
+        ${yearCond} ${monthCond}
+      GROUP BY YEARWEEK(b.periode_akhir, 1), ks.sto
+    `;
+  } else if (granularity === "monthly") {
+    sto_sql = `
+      SELECT
+        CONCAT(YEAR(b.periode_akhir), '-', LPAD(MONTH(b.periode_akhir), 2, '0')) as month_key,
+        ks.sto,
+        AVG(ks.achieved_pct) as achieved_pct
+      FROM kpi_summary_sto_snapshot ks
+      JOIN upload_batch b ON b.id = ks.upload_batch_id
+      WHERE ks.kpi_name = ? AND ks.area = ? AND b.status = 'READY'
+        ${yearCond} ${monthCond}
+      GROUP BY YEAR(b.periode_akhir), MONTH(b.periode_akhir), ks.sto
+    `;
+  } else {
+    sto_sql = `
+      SELECT
+        b.id, ks.sto, ks.achieved_pct
+      FROM kpi_summary_sto_snapshot ks
+      JOIN upload_batch b ON b.id = ks.upload_batch_id
+      WHERE ks.kpi_name = ? AND ks.area = ? AND b.status = 'READY'
+        ${yearCond} ${monthCond}
+    `;
+  }
+  
+  // Karena parameter filter-nya sama persis
+  const sto_params = [kpiName, area];
+  if (year > 0) sto_params.push(year);
+  if (month > 0) sto_params.push(month);
+  
+  const sto_results = await db.query(sto_sql, sto_params);
+  
+  // Mapping STO data ke Area result
+  area_results = area_results.map(row => {
+    // Cari data STO yang cocok dengan baris ini
+    const stos = sto_results.filter(sto_row => {
+      if (granularity === "weekly") return sto_row.week_key === row.week_key;
+      if (granularity === "monthly") return sto_row.month_key === row.month_key;
+      return sto_row.id === row.id;
+    });
+    
+    // Assign setiap STO sebagai property di dalam object row
+    // Format property: huruf awal kapital (e.g., WIRADESA -> Wiradesa)
+    stos.forEach(sto_row => {
+      const stoName = sto_row.sto.charAt(0) + sto_row.sto.slice(1).toLowerCase();
+      row[stoName] = sto_row.achieved_pct;
+    });
+    
+    // Kumpulkan daftar nama STO yang ada di baris ini
+    row.available_stos = stos.map(s => s.sto.charAt(0) + s.sto.slice(1).toLowerCase());
+    return row;
+  });
+
+  return area_results;
 }
 
 /**
