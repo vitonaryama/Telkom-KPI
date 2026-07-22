@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { KpiCard, KpiCardSkeleton, FilterBarSkeleton, TableSkeleton, EmptyState } from "./shared.jsx";
 import ExpandableRow from "./ExpandableRow.jsx";
 import TrendMonitoring from "./TrendMonitoring.jsx";
+import ProblemTicketsModal from "./ProblemTicketsModal.jsx";
 import { getKpiSummary, getKpiOverview, getBatches, getKpiSummaryBySto } from "../services/api.js";
 import { WITEL_DATA, TARGETS } from "../data/mockData.js";
 
@@ -33,6 +34,7 @@ export default function DashboardPage() {
   const [kpiData, setKpiData] = useState([]);
   const [overview, setOverview] = useState(null);
   const [fetchError, setFetchError] = useState(null);
+  const [modalConfig, setModalConfig] = useState(null); // { kpiName, area, sto }
 
   const loadBatches = async () => {
     try {
@@ -100,6 +102,13 @@ export default function DashboardPage() {
       }
     }
   }, [useRealData, selectedBatchId, stoData]);
+
+  const handleCellClick = useCallback((config) => {
+    // config: { kpiName, area, sto }
+    if (useRealData && selectedBatchId) {
+      setModalConfig(config);
+    }
+  }, [useRealData, selectedBatchId]);
 
   const witelData = useMemo(() => {
     if (useRealData && kpiData.length > 0) {
@@ -301,6 +310,7 @@ export default function DashboardPage() {
                   row={row}
                   expanded={!!expanded[row.witel || row.area]}
                   onToggle={() => handleToggle(row.witel || row.area)}
+                  onCellClick={handleCellClick}
                   useRealData={useRealData}
                   stoLoading={stoLoading[row.witel || row.area]}
                 />
@@ -311,6 +321,16 @@ export default function DashboardPage() {
       )}
 
       <TrendMonitoring />
+
+      {/* Pop-up Modal untuk daftar Problem Tickets */}
+      <ProblemTicketsModal
+        isOpen={!!modalConfig}
+        onClose={() => setModalConfig(null)}
+        batchId={selectedBatchId}
+        kpiName={modalConfig?.kpiName}
+        area={modalConfig?.area}
+        sto={modalConfig?.sto}
+      />
     </div>
   );
 }

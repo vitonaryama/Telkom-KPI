@@ -1,4 +1,4 @@
-export const TARGETS = { availability: 99, assurance: 90, ttr3: 90, ttr6Jam: 95, ttr12Jam: 96, ttr24Jam: 97, ttr3JamM: 90, sqm: 75 };
+export const TARGETS = { availability: 98.52, assurance: 91.71, ttr3: 95.25, ttr6Jam: 95, ttr12Jam: 83, ttr24Jam: 99.04, ttr3JamM: 94.79, sqm: 70 };
 
 export const WITEL_DATA = [
   {

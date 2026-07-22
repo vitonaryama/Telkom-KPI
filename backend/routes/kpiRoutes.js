@@ -187,7 +187,7 @@ router.get("/compare", async (req, res, next) => {
  */
 router.get("/problems", async (req, res, next) => {
   try {
-    const { batchId, kpiName, area } = req.query;
+    const { batchId, kpiName, area, sto } = req.query;
     if (!batchId || !kpiName || !area) {
       return res.status(400).json({
         error: "Query params 'batchId', 'kpiName', 'area' wajib diisi",
@@ -197,7 +197,8 @@ router.get("/problems", async (req, res, next) => {
     const problems = await kpiService.getProblemTickets(
       parseInt(batchId),
       kpiName,
-      area
+      area,
+      sto
     );
     res.json({ success: true, data: problems });
   } catch (error) {

@@ -2,11 +2,43 @@ import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { TrendValue } from "./shared.jsx";
 import { TARGETS } from "../data/mockData.js";
 
-export default function ExpandableRow({ row, expanded, onToggle, stoLoading }) {
+const KPI_NAMES = {
+  availability: "Service Availability",
+  assurance: "Assurance Guarantee",
+  ttr3: "TTR 3 Diamond",
+  ttr6Jam: "TTR 6 Platinum",
+  ttr12Jam: "TTR 12 Gold",
+  ttr24Jam: "TTR 24 Non HVC",
+  ttr3JamM: "TTR 3 Manja",
+  sqm: "SQM Close"
+};
+
+export default function ExpandableRow({ row, expanded, onToggle, stoLoading, onCellClick }) {
   const label = row.witel || row.area || "—";
   const metrics = row.metrics || {};
   const trend = row.trend || {};
   const stos = row.stos || [];
+
+  const handleCellClick = (e, key, sto = null) => {
+    e.stopPropagation();
+    if (onCellClick) {
+      onCellClick({
+        kpiName: KPI_NAMES[key],
+        area: label,
+        sto: sto
+      });
+    }
+  };
+
+  const Cell = ({ kpiKey, m, t, sto = null, isAreaRow = false }) => (
+    <td 
+      className={`px-4 ${isAreaRow ? 'py-3' : 'py-2.5'} text-sm cursor-pointer hover:bg-gray-200 transition-colors group`}
+      onClick={(e) => handleCellClick(e, kpiKey, sto)}
+      title={`Klik untuk melihat detail tiket problem ${KPI_NAMES[kpiKey]}`}
+    >
+      <TrendValue value={m[kpiKey] ?? 0} target={TARGETS[kpiKey]} trend={t[kpiKey]} />
+    </td>
+  );
 
   return (
     <>
@@ -25,14 +57,14 @@ export default function ExpandableRow({ row, expanded, onToggle, stoLoading }) {
             )}
           </div>
         </td>
-        <td className="px-4 py-3 text-sm"><TrendValue value={metrics.availability ?? 0} target={TARGETS.availability} trend={trend.availability} /></td>
-        <td className="px-4 py-3 text-sm"><TrendValue value={metrics.assurance ?? 0} target={TARGETS.assurance} trend={trend.assurance} /></td>
-        <td className="px-4 py-3 text-sm"><TrendValue value={metrics.ttr3 ?? 0} target={TARGETS.ttr3} trend={trend.ttr3} /></td>
-        <td className="px-4 py-3 text-sm"><TrendValue value={metrics.ttr6Jam ?? 0} target={TARGETS.ttr6Jam} trend={trend.ttr6Jam} /></td>
-        <td className="px-4 py-3 text-sm"><TrendValue value={metrics.ttr12Jam ?? 0} target={TARGETS.ttr12Jam} trend={trend.ttr12Jam} /></td>
-        <td className="px-4 py-3 text-sm"><TrendValue value={metrics.ttr24Jam ?? 0} target={TARGETS.ttr24Jam} trend={trend.ttr24Jam} /></td>
-        <td className="px-4 py-3 text-sm"><TrendValue value={metrics.ttr3JamM ?? 0} target={TARGETS.ttr3JamM} trend={trend.ttr3JamM} /></td>
-        <td className="px-4 py-3 text-sm"><TrendValue value={metrics.sqm ?? 0} target={TARGETS.sqm} trend={trend.sqm} /></td>
+        <Cell kpiKey="availability" m={metrics} t={trend} isAreaRow={true} />
+        <Cell kpiKey="assurance" m={metrics} t={trend} isAreaRow={true} />
+        <Cell kpiKey="ttr3" m={metrics} t={trend} isAreaRow={true} />
+        <Cell kpiKey="ttr6Jam" m={metrics} t={trend} isAreaRow={true} />
+        <Cell kpiKey="ttr12Jam" m={metrics} t={trend} isAreaRow={true} />
+        <Cell kpiKey="ttr24Jam" m={metrics} t={trend} isAreaRow={true} />
+        <Cell kpiKey="ttr3JamM" m={metrics} t={trend} isAreaRow={true} />
+        <Cell kpiKey="sqm" m={metrics} t={trend} isAreaRow={true} />
       </tr>
       {expanded && stoLoading && (
         <tr className="border-b border-gray-100">
@@ -52,17 +84,19 @@ export default function ExpandableRow({ row, expanded, onToggle, stoLoading }) {
         stos.map((sto) => {
           const stoMetrics = sto.metrics || {};
           const stoTrend = sto.trend || {};
+          // Ekstrak nama asli STO (hilangkan kata 'STO ' di depannya)
+          const stoId = sto.nama.replace("STO ", "");
           return (
             <tr key={sto.nama} className="border-b border-gray-100 hover:bg-gray-50/60">
               <td className="px-4 py-2.5 pl-11 text-sm text-gray-600">{sto.nama}</td>
-              <td className="px-4 py-2.5 text-sm"><TrendValue value={stoMetrics.availability ?? 0} target={TARGETS.availability} trend={stoTrend.availability} /></td>
-              <td className="px-4 py-2.5 text-sm"><TrendValue value={stoMetrics.assurance ?? 0} target={TARGETS.assurance} trend={stoTrend.assurance} /></td>
-              <td className="px-4 py-2.5 text-sm"><TrendValue value={stoMetrics.ttr3 ?? 0} target={TARGETS.ttr3} trend={stoTrend.ttr3} /></td>
-              <td className="px-4 py-2.5 text-sm"><TrendValue value={stoMetrics.ttr6Jam ?? 0} target={TARGETS.ttr6Jam} trend={stoTrend.ttr6Jam} /></td>
-              <td className="px-4 py-2.5 text-sm"><TrendValue value={stoMetrics.ttr12Jam ?? 0} target={TARGETS.ttr12Jam} trend={stoTrend.ttr12Jam} /></td>
-              <td className="px-4 py-2.5 text-sm"><TrendValue value={stoMetrics.ttr24Jam ?? 0} target={TARGETS.ttr24Jam} trend={stoTrend.ttr24Jam} /></td>
-              <td className="px-4 py-2.5 text-sm"><TrendValue value={stoMetrics.ttr3JamM ?? 0} target={TARGETS.ttr3JamM} trend={stoTrend.ttr3JamM} /></td>
-              <td className="px-4 py-2.5 text-sm"><TrendValue value={stoMetrics.sqm ?? 0} target={TARGETS.sqm} trend={stoTrend.sqm} /></td>
+              <Cell kpiKey="availability" m={stoMetrics} t={stoTrend} sto={stoId} />
+              <Cell kpiKey="assurance" m={stoMetrics} t={stoTrend} sto={stoId} />
+              <Cell kpiKey="ttr3" m={stoMetrics} t={stoTrend} sto={stoId} />
+              <Cell kpiKey="ttr6Jam" m={stoMetrics} t={stoTrend} sto={stoId} />
+              <Cell kpiKey="ttr12Jam" m={stoMetrics} t={stoTrend} sto={stoId} />
+              <Cell kpiKey="ttr24Jam" m={stoMetrics} t={stoTrend} sto={stoId} />
+              <Cell kpiKey="ttr3JamM" m={stoMetrics} t={stoTrend} sto={stoId} />
+              <Cell kpiKey="sqm" m={stoMetrics} t={stoTrend} sto={stoId} />
             </tr>
           );
         })}

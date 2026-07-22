@@ -97,7 +97,7 @@ async function compareBatches(batchIdOld, batchIdNew) {
  * @param {string} area
  * @returns list of {trouble_no, sto, detail...}
  */
-async function getProblemTickets(batchId, kpiName, area) {
+async function getProblemTickets(batchId, kpiName, area, sto = null) {
   // Validate batch exists lightly
   const [{ cnt }] = await db.query(
     "SELECT COUNT(*) as cnt FROM upload_batch WHERE id = ?", [batchId]
@@ -106,6 +106,9 @@ async function getProblemTickets(batchId, kpiName, area) {
 
   let sql = "";
   let values = [batchId, area];
+  const stoClauseT = sto ? " AND t.sto = ?" : "";
+  const stoClauseS = sto ? " AND s.sto = ?" : "";
+  if (sto) values.push(sto);
 
   if (kpiName === "Assurance Guarantee") {
     sql = `
@@ -115,6 +118,7 @@ async function getProblemTickets(batchId, kpiName, area) {
       WHERE t.upload_batch_id = ? 
         AND t.area = ? 
         AND t.is_gamas = 1
+        ${stoClauseT}
       ORDER BY t.trouble_closetime DESC
       LIMIT 50
     `;
@@ -126,6 +130,7 @@ async function getProblemTickets(batchId, kpiName, area) {
       WHERE t.upload_batch_id = ? 
         AND t.area = ?
         AND t.wsa_exclude = 0
+        ${stoClauseT}
       ORDER BY t.downtime_hours DESC
       LIMIT 50
     `;
@@ -148,6 +153,7 @@ async function getProblemTickets(batchId, kpiName, area) {
         WHERE t.upload_batch_id = ? 
           AND t.area = ?
           AND t.is_kpi_ttr = 1 AND t.comply3_manja = 0
+          ${stoClauseT}
         ORDER BY t.trouble_closetime DESC
         LIMIT 50
       `;
@@ -162,10 +168,13 @@ async function getProblemTickets(batchId, kpiName, area) {
         WHERE t.upload_batch_id = ? 
           AND t.area = ?
           AND t.is_kpi_ttr = 1 AND t.${complyInfo.col} = 0 AND t.flag_hvc = ?
+          ${stoClauseT}
         ORDER BY t.trouble_closetime DESC
         LIMIT 50
       `;
-      values.push(complyInfo.hvc);
+      // We need to order values properly since sto is pushed last, but flag_hvc should be before sto
+      values = [batchId, area, complyInfo.hvc];
+      if (sto) values.push(sto);
     }
   } else if (kpiName === "SQM Close") {
     sql = `
@@ -175,6 +184,7 @@ async function getProblemTickets(batchId, kpiName, area) {
         AND s.area = ?
         AND NOT ((s.mapping IS NULL OR s.mapping='Individual') AND s.is_assignment = 1 AND s.is_hasil_ukur = 1)
         AND (s.mapping NOT IN ('Gamas', 'Online', 'Di-Sisi-Plg', 'Gamas-non-sqm') OR s.mapping IS NULL)
+        ${stoClauseS}
       ORDER BY s.trouble_no DESC
       LIMIT 50
     `;
@@ -450,7 +460,6 @@ async function getKpiSummaryBySto(batchId, area) {
   const jam_periode = batchInfo[0].jumlah_hari_periode * 24;
 
   // TTR + Assurance per STO
-  // Formula disamakan dengan etl_kpi_pipeline_v2.py: filter is_kpi_ttr di WHERE, bukan CASE
   const ttrRows = await db.query(`
     SELECT
       sto,

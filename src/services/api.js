@@ -110,8 +110,9 @@ export function compareBatches(batchOld, batchNew) {
   return request(`/kpi/compare?${params}`);
 }
 
-export function getProblemTickets(batchId, kpiName, area) {
+export function getProblemTickets(batchId, kpiName, area, sto = null) {
   const params = new URLSearchParams({ batchId, kpiName, area });
+  if (sto) params.set("sto", sto);
   return request(`/kpi/problems?${params}`);
 }
 

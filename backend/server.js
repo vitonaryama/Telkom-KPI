@@ -2,46 +2,7 @@
  * ============================================================================
  * BACKEND SERVER — KPI DASHBOARD WITEL PEKALONGAN
  * Tech Stack: Node.js + Express + MySQL
- * ============================================================================
- *
- * Fitur:
- *   - GET /api/kpi/summary          → Ambil ringkasan 8 KPI per batch/area
- *   - GET /api/kpi/overview         → Statistik overview KPI
- *   - GET /api/kpi/trend            → Trend satu KPI (5 batch terakhir)
- *   - GET /api/kpi/compare          → Bandingkan 2 batch (delta)
- *   - GET /api/kpi/problems         → Drill-down trouble_no bermasalah
- *
- *   - POST /api/upload/validate     → Validasi file CSV tanpa commit
- *   - POST /api/upload/commit       → Upload + load + hitung KPI summary
- *   - GET /api/batches              → Daftar semua batch
- *   - GET /api/batches/:id          → Detail metadata batch
- *
- * Environment Variables (lihat .env.example):
- *   DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
- *   PORT, CORS_ORIGIN, MAX_FILE_SIZE, UPLOAD_DIR
- *
- * Cara menjalankan:
- *   1. npm install
- *   2. cp .env.example .env (sesuaikan konfigurasi DB)
- *   3. npm run dev      (development dengan nodemon)
- *   4. npm start        (production)
- *
- * Struktur project:
- *   server.js
- *   package.json
- *   .env, .env.example
- *   config/
- *     ├─ database.js          → pool connection, query helpers
- *   services/
- *     ├─ kpiService.js        → business logic KPI queries
- *     ├─ uploadService.js     → handle file upload & ETL logic
- *   routes/
- *     ├─ kpiRoutes.js         → GET endpoints KPI
- *     ├─ uploadRoutes.js      → POST/GET endpoints upload
- *   middleware/
- *     ├─ errorHandler.js      → error handling middleware
- *
- * ============================================================================
+ * ============================================================================ 
  */
 
 require("dotenv").config();
