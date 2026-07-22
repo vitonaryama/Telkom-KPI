@@ -127,6 +127,12 @@ export function getBatchById(id) {
   return request(`/upload/${id}`);
 }
 
+export function deleteBatch(id) {
+  return request(`/upload/${id}`, {
+    method: "DELETE",
+  });
+}
+
 /* ─── Upload ───────────────────────────────────────────────────────────── */
 
 export function validateFile(file, type) {

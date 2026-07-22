@@ -184,6 +184,9 @@ async function loadTicketCloseData(filePath, batchId) {
         // invalid dates, biarkan downtime_hours = 0
       }
 
+      // Raw value dari CSV untuk COMPLY3_MANJA
+      const csv_comply3_manja = parseInt(rec.COMPLY3_MANJA) || 0;
+
       const sql = `
         INSERT INTO tickets_ttr (
           upload_batch_id, trouble_no, sto, area, flag_hvc, is_kpi_ttr,
@@ -206,7 +209,7 @@ async function loadTicketCloseData(filePath, batchId) {
         parseInt(rec.COMPLY6) || 0,
         parseInt(rec.COMPLY12) || 0,
         parseInt(rec.COMPLY24) || 0,
-        parseInt(rec.COMPLY3_MANJA) || 0,
+        csv_comply3_manja,
       ];
 
       await connection.execute(sql, values);
@@ -291,21 +294,35 @@ async function computeKpiSummary(batchId) {
 
   for (const area of AREAS) {
     // Service Availability
-    // SA% per area = 100 * (1 - AVG(downtime) / jam_periode) pada seluruh tiket di area
+    // SA% per area = average dari SA% per STO
+    // Formula: untuk setiap STO, hitung SA% = 100 * (1 - SUM(downtime) / jam_periode)
+    // Lalu rata-ratakan SA% semua STO di area tersebut
     const sa_rows = await db.query(`
-      SELECT AVG(downtime_hours) as avg_downtime
+      SELECT sto, SUM(downtime_hours) as total_downtime, COUNT(*) as ticket_count
       FROM tickets_ttr
       WHERE upload_batch_id = ? AND area = ? AND wsa_exclude = 0
+      GROUP BY sto
     `, [batchId, area]);
     
-    if (sa_rows.length > 0 && sa_rows[0].avg_downtime !== null) {
-      const avg_downtime = Number(sa_rows[0].avg_downtime) || 0;
-      const sa_pct = Math.max(0, Math.min(100, 100.0 * (1 - avg_downtime / jam_periode)));
+    if (sa_rows.length > 0) {
+      const sto_avg_downtime = sa_rows.map(r => {
+        const total = Number(r.total_downtime) || 0;
+        const cnt = Number(r.ticket_count) || 1;
+        return total / cnt;   // ✅ rata-rata downtime per tiket di STO ini
+      });
+
+      const sa_pcts = sto_avg_downtime.map(avgD =>
+        Math.max(0, Math.min(100, 100.0 * (1 - avgD / jam_periode)))
+      );
+      const sa_pct = sa_pcts.reduce((a, b) => a + b, 0) / sa_pcts.length;
+
+      // rata-rata dari rata-rata per STO (bukan sum semua dibagi jumlah STO)
+      const avg_downtime = sto_avg_downtime.reduce((a, b) => a + b, 0) / sto_avg_downtime.length;
       
       const target = targets["Service Availability"];
       summary.push({
         area, kpi_name: "Service Availability",
-        numerator: parseFloat(avg_downtime.toFixed(4)),  // Average downtime in hours
+        numerator: parseFloat(avg_downtime.toFixed(4)),
         denominator: jam_periode,
         achieved_pct: parseFloat(sa_pct.toFixed(2)),
         target_pct: target,
@@ -391,17 +408,32 @@ async function computeKpiSummary(batchId) {
     }
 
     // TTR 3 Jam Manja (lintas semua kategori HVC)
-    // TTR 3 Manja% per area = Pooled Ratio
+    // TTR 3 Manja% per area = average dari TTR 3 Manja% per STO
     const manja_rows = await db.query(`
-      SELECT COUNT(*) as cnt, SUM(comply3_manja) as c3m
+      SELECT sto, COUNT(*) as cnt, SUM(CASE WHEN downtime_hours <= 3 THEN 1 ELSE 0 END) as c3m
       FROM tickets_ttr
-      WHERE upload_batch_id = ? AND area = ? AND is_kpi_ttr = 1
+      WHERE upload_batch_id = ? AND area = ? AND is_kpi_ttr = 1 AND comply3_manja = 1
+      GROUP BY sto
     `, [batchId, area]);
-    
-    if (manja_rows.length > 0 && manja_rows[0].cnt > 0) {
-      const total_cnt = Number(manja_rows[0].cnt) || 0;
-      const total_c3m = Number(manja_rows[0].c3m) || 0;
-      const pct = total_cnt > 0 ? 100.0 * total_c3m / total_cnt : 0;
+
+    if (manja_rows.length > 0) {
+      const pcts = manja_rows.map(r => {
+        const cnt = Number(r.cnt) || 0;
+        const c3m = Number(r.c3m) || 0;
+        return cnt > 0 ? 100.0 * c3m / cnt : 0;
+      });
+      const pct = pcts.reduce((a, b) => a + b, 0) / pcts.length;
+      
+      // Force numeric conversion untuk mencegah string concatenation
+      const total_c3m = manja_rows.reduce((a, r) => {
+        const val = Number(r.c3m);
+        return a + (isNaN(val) ? 0 : val);
+      }, 0);
+      
+      const total_cnt = manja_rows.reduce((a, r) => {
+        const val = Number(r.cnt);
+        return a + (isNaN(val) ? 0 : val);
+      }, 0);
       
       const target = targets["TTR 3 Manja"];
       summary.push({
@@ -481,6 +513,19 @@ async function computeKpiSummary(batchId) {
   return summary;
 }
 
+/**
+ * Hapus batch beserta seluruh data turunannya (cascading)
+ */
+async function deleteBatch(batchId) {
+  // Kita gunakan manual transaction untuk memastikan semua query sukses sebelum commit
+  await db.transaction(async (connection) => {
+    await connection.execute("DELETE FROM kpi_summary_snapshot WHERE upload_batch_id = ?", [batchId]);
+    await connection.execute("DELETE FROM tickets_ttr WHERE upload_batch_id = ?", [batchId]);
+    await connection.execute("DELETE FROM tickets_sqm WHERE upload_batch_id = ?", [batchId]);
+    await connection.execute("DELETE FROM upload_batch WHERE id = ?", [batchId]);
+  });
+}
+
 module.exports = {
   parseCsv,
   validateTicketCloseFile,
@@ -488,4 +533,5 @@ module.exports = {
   loadTicketCloseData,
   loadSqmData,
   computeKpiSummary,
+  deleteBatch,
 };

@@ -4,7 +4,7 @@ import {
   AlertTriangle, HelpCircle, X, Loader2, Eye,
 } from "lucide-react";
 import StorageDonut from "./StorageDonut.jsx";
-import { uploadCommit, getBatches, validateFile } from "../services/api.js";
+import { uploadCommit, getBatches, validateFile, deleteBatch } from "../services/api.js";
 
 export default function UploadExcelPage({ onUploadSuccess, onUploadError }) {
   const [dragOver, setDragOver] = useState(false);
@@ -20,12 +20,37 @@ export default function UploadExcelPage({ onUploadSuccess, onUploadError }) {
   const [fileTypes, setFileTypes] = useState({});
   const inputRef = useRef(null);
 
+  // States for delete modal
+  const [batchToDelete, setBatchToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
   const loadBatches = async () => {
     try {
-      const result = await getBatches(10, 0);
-      setBatches(result.data || []);
-    } catch {
-      // silent
+      const res = await getBatches();
+      setBatches(res.data || []);
+    } catch (err) {
+      console.error("Gagal load batches:", err);
+    }
+  };
+
+  const handleDeleteBatch = (id) => {
+    setBatchToDelete(id);
+    setDeleteError(null);
+  };
+
+  const confirmDeleteBatch = async () => {
+    if (!batchToDelete) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteBatch(batchToDelete);
+      setBatchToDelete(null);
+      loadBatches();
+    } catch (err) {
+      setDeleteError(err.message || "Gagal menghapus batch.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -375,6 +400,7 @@ export default function UploadExcelPage({ onUploadSuccess, onUploadError }) {
               <th className="text-left font-semibold px-5 py-2.5">Filename</th>
               <th className="text-left font-semibold px-5 py-2.5">Periode</th>
               <th className="text-left font-semibold px-5 py-2.5">Status</th>
+              <th className="text-center font-semibold px-5 py-2.5">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -392,12 +418,72 @@ export default function UploadExcelPage({ onUploadSuccess, onUploadError }) {
                       {b.status}
                     </span>
                   </td>
+                  <td className="px-5 py-3 text-center">
+                    <button
+                      onClick={() => handleDeleteBatch(b.id)}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                      title="Hapus Batch"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+      {/* DELETE CONFIRMATION MODAL */}
+      {batchToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <div className="p-2 bg-red-50 rounded-full">
+                <AlertTriangle size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Hapus Batch?</h3>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+              Tindakan ini akan menghapus batch secara permanen beserta <strong>semua data tiket dan ringkasan KPI</strong> yang terkait. Tindakan ini tidak dapat dibatalkan.
+            </p>
+
+            {deleteError && (
+              <div className="mb-4 p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-100 flex items-start gap-2">
+                <XCircle size={14} className="mt-0.5 flex-shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setBatchToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={confirmDeleteBatch}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 flex items-center gap-2 disabled:opacity-50 transition-colors"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Menghapus...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Hapus Permanen
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

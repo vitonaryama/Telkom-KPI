@@ -238,6 +238,24 @@ router.get("/", async (req, res, next) => {
 });
 
 /**
+ * DELETE /api/batches/:id
+ * Hapus batch beserta data tiket dan summary yang terkait
+ */
+router.delete("/:id", async (req, res, next) => {
+  try {
+    const batchId = parseInt(req.params.id);
+    if (isNaN(batchId)) {
+      return res.status(400).json({ error: "ID batch tidak valid" });
+    }
+
+    await uploadService.deleteBatch(batchId);
+    res.json({ success: true, message: `Batch ${batchId} berhasil dihapus` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/batches/:id
  * Ambil detail metadata satu batch
  *
