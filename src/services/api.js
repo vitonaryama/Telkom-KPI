@@ -25,10 +25,17 @@ async function request(path, options = {}) {
   });
 
   if (res.status === 401) {
-    localStorage.removeItem("kpi_token");
-    localStorage.removeItem("kpi_user");
-    window.location.reload();
-    throw new Error("Sesi berakhir, silakan login kembali");
+    const hadToken = !!getToken();
+    if (hadToken) {
+      // Token ada tapi backend tolak → sesi benar-benar berakhir/expired
+      localStorage.removeItem("kpi_token");
+      localStorage.removeItem("kpi_user");
+      window.location.reload();
+      throw new Error("Sesi berakhir, silakan login kembali");
+    }
+    // Tidak ada token (misal: login dengan password salah) → biarkan error backend muncul
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Email atau password salah");
   }
 
   if (res.status === 403) {
