@@ -3,15 +3,24 @@
  * Menggunakan mysql2/promise untuk async/await support
  */
 
-  const mysql = require("mysql2/promise");
+   const mysql = require("mysql2/promise");
   require("dotenv").config();
 
-  const pool = mysql.createPool({
-  host: process.env.MYSQLHOST,
-  port: process.env.MYSQLPORT,
-  user: process.env.MYSQLUSER,
-  password: process.env.MYSQLPASSWORD,
-  database: process.env.MYSQLDATABASE,
+  const DB_HOST = process.env.MYSQLHOST;
+  const DB_PORT = process.env.MYSQLPORT;
+  const DB_USER = process.env.MYSQLUSER;
+  const DB_PASSWORD = process.env.MYSQLPASSWORD;
+  const DB_NAME = process.env.MYSQLDATABASE;
+  const JWT_SECRET = process.env.JWT_SECRET;
+  const JWT_EXPIRES = process.env.JWT_EXPIRES;
+  const PORT = process.env.PORT;
+
+const pool = mysql.createPool({
+  host: DB_HOST,
+  port: DB_PORT,
+  user: DB_USER,
+  password: DB_PASSWORD,
+  database: DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
