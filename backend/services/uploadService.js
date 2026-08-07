@@ -294,6 +294,8 @@ async function computeKpiSummary(batchId) {
   const summary_sto = [];
 
   for (const area of AREAS) {
+    const areaStos = Object.keys(STO_AREA_MAP).filter(sto => STO_AREA_MAP[sto] === area);
+
     // Service Availability
     // SA% per area = average dari SA% per STO
     const sa_rows = await db.query(`
@@ -303,40 +305,49 @@ async function computeKpiSummary(batchId) {
       GROUP BY sto
     `, [batchId, area]);
     
-    if (sa_rows.length > 0) {
-      const sto_avg_downtime = sa_rows.map(r => {
-        const total = Number(r.total_downtime) || 0;
-        const cnt = Number(r.ticket_count) || 1;
+    let area_sa_pcts = [];
+    let area_sa_avg_downtimes = [];
+    const target_sa = targets["Service Availability"];
+
+    areaStos.forEach(sto => {
+      const row = sa_rows.find(r => r.sto === sto);
+      if (row) {
+        const total = Number(row.total_downtime) || 0;
+        const cnt = Number(row.ticket_count) || 1;
         const avgD = total / cnt;
         
-        // Push STO level data
         const sto_sa_pct = Math.max(0, Math.min(100, 100.0 * (1 - avgD / jam_periode)));
-        const target = targets["Service Availability"];
         summary_sto.push({
-          area, sto: r.sto, kpi_name: "Service Availability",
+          area, sto, kpi_name: "Service Availability",
           numerator: parseFloat(avgD.toFixed(4)), denominator: jam_periode,
-          achieved_pct: parseFloat(sto_sa_pct.toFixed(2)), target_pct: target,
-          is_achieved: sto_sa_pct >= target ? 1 : 0,
+          achieved_pct: parseFloat(sto_sa_pct.toFixed(2)), target_pct: target_sa,
+          is_achieved: sto_sa_pct >= target_sa ? 1 : 0,
         });
-        return avgD;
-      });
+        area_sa_pcts.push(sto_sa_pct);
+        area_sa_avg_downtimes.push(avgD);
+      } else {
+        summary_sto.push({
+          area, sto, kpi_name: "Service Availability",
+          numerator: 0, denominator: jam_periode,
+          achieved_pct: 100.0, target_pct: target_sa,
+          is_achieved: 1,
+        });
+        area_sa_pcts.push(100.0);
+        area_sa_avg_downtimes.push(0);
+      }
+    });
 
-      const sa_pcts = sto_avg_downtime.map(avgD =>
-        Math.max(0, Math.min(100, 100.0 * (1 - avgD / jam_periode)))
-      );
-      const sa_pct = sa_pcts.reduce((a, b) => a + b, 0) / sa_pcts.length;
-      const avg_downtime = sto_avg_downtime.reduce((a, b) => a + b, 0) / sto_avg_downtime.length;
-      
-      const target = targets["Service Availability"];
-      summary.push({
-        area, kpi_name: "Service Availability",
-        numerator: parseFloat(avg_downtime.toFixed(4)),
-        denominator: jam_periode,
-        achieved_pct: parseFloat(sa_pct.toFixed(2)),
-        target_pct: target,
-        is_achieved: sa_pct >= target ? 1 : 0,
-      });
-    }
+    const sa_pct = area_sa_pcts.length > 0 ? area_sa_pcts.reduce((a, b) => a + b, 0) / area_sa_pcts.length : 100.0;
+    const avg_downtime = area_sa_avg_downtimes.length > 0 ? area_sa_avg_downtimes.reduce((a, b) => a + b, 0) / area_sa_avg_downtimes.length : 0;
+    
+    summary.push({
+      area, kpi_name: "Service Availability",
+      numerator: parseFloat(avg_downtime.toFixed(4)),
+      denominator: jam_periode,
+      achieved_pct: parseFloat(sa_pct.toFixed(2)),
+      target_pct: target_sa,
+      is_achieved: sa_pct >= target_sa ? 1 : 0,
+    });
 
     // Assurance Guarantee
     const ag_rows = await db.query(`
@@ -346,41 +357,44 @@ async function computeKpiSummary(batchId) {
       GROUP BY sto
     `, [batchId, area]);
     
-    if (ag_rows.length > 0) {
-      let area_total = 0;
-      let area_gamas = 0;
+    let area_total = 0;
+    let area_gamas = 0;
+    const target_ag = targets["Assurance Guarantee"];
 
-      ag_rows.forEach(r => {
-        const total = Number(r.total) || 0;
-        const n_gamas = Number(r.n_gamas) || 0;
+    areaStos.forEach(sto => {
+      const row = ag_rows.find(r => r.sto === sto);
+      if (row && Number(row.total) > 0) {
+        const total = Number(row.total);
+        const n_gamas = Number(row.n_gamas) || 0;
         area_total += total;
         area_gamas += n_gamas;
 
-        if (total > 0) {
-          const ag_pct = 100.0 * (1 - n_gamas / total);
-          const target = targets["Assurance Guarantee"];
-          summary_sto.push({
-            area, sto: r.sto, kpi_name: "Assurance Guarantee",
-            numerator: total - n_gamas, denominator: total,
-            achieved_pct: parseFloat(ag_pct.toFixed(2)), target_pct: target,
-            is_achieved: ag_pct >= target ? 1 : 0,
-          });
-        }
-      });
-
-      if (area_total > 0) {
-        const ag_pct = 100.0 * (1 - area_gamas / area_total);
-        const target = targets["Assurance Guarantee"];
-        summary.push({
-          area, kpi_name: "Assurance Guarantee",
-          numerator: area_total - area_gamas,
-          denominator: area_total,
-          achieved_pct: parseFloat(ag_pct.toFixed(2)),
-          target_pct: target,
-          is_achieved: ag_pct >= target ? 1 : 0,
+        const ag_pct = 100.0 * (1 - n_gamas / total);
+        summary_sto.push({
+          area, sto, kpi_name: "Assurance Guarantee",
+          numerator: total - n_gamas, denominator: total,
+          achieved_pct: parseFloat(ag_pct.toFixed(2)), target_pct: target_ag,
+          is_achieved: ag_pct >= target_ag ? 1 : 0,
+        });
+      } else {
+        summary_sto.push({
+          area, sto, kpi_name: "Assurance Guarantee",
+          numerator: 0, denominator: 0,
+          achieved_pct: 100.0, target_pct: target_ag,
+          is_achieved: 1,
         });
       }
-    }
+    });
+
+    const ag_pct = area_total > 0 ? 100.0 * (1 - area_gamas / area_total) : 100.0;
+    summary.push({
+      area, kpi_name: "Assurance Guarantee",
+      numerator: area_total - area_gamas,
+      denominator: area_total,
+      achieved_pct: parseFloat(ag_pct.toFixed(2)),
+      target_pct: target_ag,
+      is_achieved: ag_pct >= target_ag ? 1 : 0,
+    });
 
     // TTR 3/6/12/24 per HVC category
     const ttr_rows = await db.query(`
@@ -399,44 +413,48 @@ async function computeKpiSummary(batchId) {
       hvcGroups[hvc].push(row);
     }
 
-    for (const [hvc, rows] of Object.entries(hvcGroups)) {
-      if (hvc_to_comply[hvc]) {
-        const [kpi_name, comply_col] = hvc_to_comply[hvc];
-        const colMap = { "comply3": "c3", "comply6": "c6", "comply12": "c12", "comply24": "c24" };
-        const target = targets[kpi_name];
-        
-        let area_comply = 0;
-        let area_cnt = 0;
+    for (const [hvc, [kpi_name, comply_col]] of Object.entries(hvc_to_comply)) {
+      const target_ttr = targets[kpi_name];
+      const colMap = { "comply3": "c3", "comply6": "c6", "comply12": "c12", "comply24": "c24" };
+      const rows = hvcGroups[hvc] || [];
+      
+      let area_comply = 0;
+      let area_cnt = 0;
 
-        rows.forEach(r => {
-          const c = Number(r[colMap[comply_col]]) || 0;
-          const cnt = Number(r.cnt) || 0;
+      areaStos.forEach(sto => {
+        const row = rows.find(r => r.sto === sto);
+        if (row && Number(row.cnt) > 0) {
+          const c = Number(row[colMap[comply_col]]) || 0;
+          const cnt = Number(row.cnt);
           area_comply += c;
           area_cnt += cnt;
 
-          if (cnt > 0) {
-            const pct = 100.0 * c / cnt;
-            summary_sto.push({
-              area, sto: r.sto, kpi_name,
-              numerator: c, denominator: cnt,
-              achieved_pct: parseFloat(pct.toFixed(2)), target_pct: target,
-              is_achieved: pct >= target ? 1 : 0,
-            });
-          }
-        });
-
-        if (area_cnt > 0) {
-          const pct = 100.0 * area_comply / area_cnt;
-          summary.push({
-            area, kpi_name,
-            numerator: area_comply,
-            denominator: area_cnt,
-            achieved_pct: parseFloat(pct.toFixed(2)),
-            target_pct: target,
-            is_achieved: pct >= target ? 1 : 0,
+          const pct = 100.0 * c / cnt;
+          summary_sto.push({
+            area, sto, kpi_name,
+            numerator: c, denominator: cnt,
+            achieved_pct: parseFloat(pct.toFixed(2)), target_pct: target_ttr,
+            is_achieved: pct >= target_ttr ? 1 : 0,
+          });
+        } else {
+          summary_sto.push({
+            area, sto, kpi_name,
+            numerator: 0, denominator: 0,
+            achieved_pct: 100.0, target_pct: target_ttr,
+            is_achieved: 1,
           });
         }
-      }
+      });
+
+      const pct = area_cnt > 0 ? 100.0 * area_comply / area_cnt : 100.0;
+      summary.push({
+        area, kpi_name,
+        numerator: area_comply,
+        denominator: area_cnt,
+        achieved_pct: parseFloat(pct.toFixed(2)),
+        target_pct: target_ttr,
+        is_achieved: pct >= target_ttr ? 1 : 0,
+      });
     }
 
     // TTR 3 Jam Manja (lintas semua kategori HVC)
@@ -447,41 +465,47 @@ async function computeKpiSummary(batchId) {
       GROUP BY sto
     `, [batchId, area]);
 
-    if (manja_rows.length > 0) {
-      let area_c3m = 0;
-      let area_cnt = 0;
-      const target = targets["TTR 3 Manja"];
+    let area_c3m = 0;
+    let area_cnt = 0;
+    let area_manja_pcts = [];
+    const target_manja = targets["TTR 3 Manja"];
 
-      const pcts = manja_rows.map(r => {
-        const cnt = Number(r.cnt) || 0;
-        const c3m = Number(r.c3m) || 0;
+    areaStos.forEach(sto => {
+      const row = manja_rows.find(r => r.sto === sto);
+      if (row && Number(row.cnt) > 0) {
+        const cnt = Number(row.cnt);
+        const c3m = Number(row.c3m) || 0;
         area_c3m += c3m;
         area_cnt += cnt;
 
-        const sto_pct = cnt > 0 ? 100.0 * c3m / cnt : 0;
-        if (cnt > 0) {
-          summary_sto.push({
-            area, sto: r.sto, kpi_name: "TTR 3 Manja",
-            numerator: c3m, denominator: cnt,
-            achieved_pct: parseFloat(sto_pct.toFixed(2)), target_pct: target,
-            is_achieved: sto_pct >= target ? 1 : 0,
-          });
-        }
-        return sto_pct;
-      });
-
-      if (area_cnt > 0) {
-        const pct = pcts.reduce((a, b) => a + b, 0) / pcts.length;
-        summary.push({
-          area, kpi_name: "TTR 3 Manja",
-          numerator: parseInt(area_c3m),
-          denominator: area_cnt,
-          achieved_pct: parseFloat(pct.toFixed(2)),
-          target_pct: target,
-          is_achieved: pct >= target ? 1 : 0,
+        const sto_pct = 100.0 * c3m / cnt;
+        summary_sto.push({
+          area, sto, kpi_name: "TTR 3 Manja",
+          numerator: c3m, denominator: cnt,
+          achieved_pct: parseFloat(sto_pct.toFixed(2)), target_pct: target_manja,
+          is_achieved: sto_pct >= target_manja ? 1 : 0,
         });
+        area_manja_pcts.push(sto_pct);
+      } else {
+        summary_sto.push({
+          area, sto, kpi_name: "TTR 3 Manja",
+          numerator: 0, denominator: 0,
+          achieved_pct: 100.0, target_pct: target_manja,
+          is_achieved: 1,
+        });
+        area_manja_pcts.push(100.0);
       }
-    }
+    });
+
+    const manja_pct = area_manja_pcts.length > 0 ? area_manja_pcts.reduce((a, b) => a + b, 0) / area_manja_pcts.length : 100.0;
+    summary.push({
+      area, kpi_name: "TTR 3 Manja",
+      numerator: parseInt(area_c3m),
+      denominator: area_cnt,
+      achieved_pct: parseFloat(manja_pct.toFixed(2)),
+      target_pct: target_manja,
+      is_achieved: manja_pct >= target_manja ? 1 : 0,
+    });
 
     // SQM Close
     const sqm_rows = await db.query(`
@@ -493,40 +517,44 @@ async function computeKpiSummary(batchId) {
       GROUP BY sto
     `, [batchId, area]);
     
-    if (sqm_rows.length > 0) {
-      let area_num = 0;
-      let area_denom = 0;
-      const target = targets["SQM Close"];
+    let area_num = 0;
+    let area_denom = 0;
+    const target_sqm = targets["SQM Close"];
 
-      sqm_rows.forEach(r => {
-        const num = Number(r.num) || 0;
-        const denom = Number(r.denom) || 0;
+    areaStos.forEach(sto => {
+      const row = sqm_rows.find(r => r.sto === sto);
+      if (row && Number(row.denom) > 0) {
+        const num = Number(row.num) || 0;
+        const denom = Number(row.denom);
         area_num += num;
         area_denom += denom;
 
-        if (denom > 0) {
-          const pct = 100.0 * num / denom;
-          summary_sto.push({
-            area, sto: r.sto, kpi_name: "SQM Close",
-            numerator: num, denominator: denom,
-            achieved_pct: parseFloat(pct.toFixed(2)), target_pct: target,
-            is_achieved: pct >= target ? 1 : 0,
-          });
-        }
-      });
-
-      if (area_denom > 0) {
-        const pct = 100.0 * area_num / area_denom;
-        summary.push({
-          area, kpi_name: "SQM Close",
-          numerator: parseInt(area_num),
-          denominator: parseInt(area_denom),
-          achieved_pct: parseFloat(pct.toFixed(2)),
-          target_pct: target,
-          is_achieved: pct >= target ? 1 : 0,
+        const pct = 100.0 * num / denom;
+        summary_sto.push({
+          area, sto, kpi_name: "SQM Close",
+          numerator: num, denominator: denom,
+          achieved_pct: parseFloat(pct.toFixed(2)), target_pct: target_sqm,
+          is_achieved: pct >= target_sqm ? 1 : 0,
+        });
+      } else {
+        summary_sto.push({
+          area, sto, kpi_name: "SQM Close",
+          numerator: 0, denominator: 0,
+          achieved_pct: 100.0, target_pct: target_sqm,
+          is_achieved: 1,
         });
       }
-    }
+    });
+
+    const sqm_pct = area_denom > 0 ? 100.0 * area_num / area_denom : 100.0;
+    summary.push({
+      area, kpi_name: "SQM Close",
+      numerator: parseInt(area_num),
+      denominator: parseInt(area_denom),
+      achieved_pct: parseFloat(sqm_pct.toFixed(2)),
+      target_pct: target_sqm,
+      is_achieved: sqm_pct >= target_sqm ? 1 : 0,
+    });
   }
 
   // Debug: Log summary sebelum insert

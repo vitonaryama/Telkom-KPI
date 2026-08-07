@@ -617,7 +617,7 @@ async function getKpiSummaryBySto(batchId, area) {
     
     const getTtr = (hvcFlag, complyCol) => {
       const row = ttrHvc[hvcFlag];
-      if (!row || row.cnt <= 0) return 0;
+      if (!row || row.cnt <= 0) return 100;
       return 100 * (row[complyCol] || 0) / row.cnt;
     };
 
@@ -626,8 +626,8 @@ async function getKpiSummaryBySto(batchId, area) {
     const ttr12Jam = getTtr('HVC_GOLD', 'c12');
     const ttr24Jam = getTtr('REGULER', 'c24');
     
-    const ttr3JamM = ttrManja.cnt > 0 ? 100 * (ttrManja.c3m || 0) / ttrManja.cnt : 0;
-    const sqmPct = sqm.denom > 0 ? 100 * sqm.num / sqm.denom : 0;
+    const ttr3JamM = ttrManja.cnt > 0 ? 100 * (ttrManja.c3m || 0) / ttrManja.cnt : 100;
+    const sqmPct = sqm.denom > 0 ? 100 * sqm.num / sqm.denom : 100;
 
     return {
       nama: `STO ${sto}`,
