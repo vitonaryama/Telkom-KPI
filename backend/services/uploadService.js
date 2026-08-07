@@ -459,9 +459,9 @@ async function computeKpiSummary(batchId) {
 
     // TTR 3 Jam Manja (lintas semua kategori HVC)
     const manja_rows = await db.query(`
-      SELECT sto, COUNT(*) as cnt, SUM(CASE WHEN downtime_hours <= 3 THEN 1 ELSE 0 END) as c3m
+      SELECT sto, COUNT(*) as cnt, SUM(CASE WHEN comply3_manja = 0 THEN 1 ELSE 0 END) as c3m
       FROM tickets_ttr
-      WHERE upload_batch_id = ? AND area = ? AND is_kpi_ttr = 1 AND comply3_manja = 1
+      WHERE upload_batch_id = ? AND area = ? AND is_kpi_ttr = 1
       GROUP BY sto
     `, [batchId, area]);
 

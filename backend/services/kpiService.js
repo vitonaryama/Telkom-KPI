@@ -152,7 +152,7 @@ async function getProblemTickets(batchId, kpiName, area, sto = null) {
         FROM tickets_ttr t
         WHERE t.upload_batch_id = ? 
           AND t.area = ?
-          AND t.is_kpi_ttr = 1 AND t.comply3_manja = 1 AND t.downtime_hours > 3
+          AND t.is_kpi_ttr = 1 AND t.comply3_manja = 1
           ${stoClauseT}
         ORDER BY t.trouble_closetime DESC
         LIMIT 50
@@ -561,11 +561,10 @@ async function getKpiSummaryBySto(batchId, area) {
     SELECT
       sto,
       COUNT(*) AS cnt,
-      SUM(CASE WHEN downtime_hours <= 3 THEN 1 ELSE 0 END) AS c3m
+      SUM(CASE WHEN comply3_manja = 0 THEN 1 ELSE 0 END) AS c3m
     FROM tickets_ttr
     WHERE upload_batch_id = ? AND area = ? 
-      AND is_kpi_ttr = 1 
-      AND comply3_manja = 1
+      AND is_kpi_ttr = 1
     GROUP BY sto
   `, [batchId, area]);
 
