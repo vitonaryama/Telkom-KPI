@@ -183,10 +183,16 @@ export default function TrendMonitoring() {
           areaMap[areaKey].push(row);
         });
 
-        // Kumpulkan semua batch_id unik sebagai sumbu X
-        const batchIds = [...new Set(rawData.map(r => r.id))].sort((a, b) => a - b);
+        // Kumpulkan semua batch_id unik sebagai sumbu X dan urutkan berdasarkan periode akhir
         const batchMeta = {};
         rawData.forEach(r => { batchMeta[r.id] = r; });
+        
+        const batchIds = [...new Set(rawData.map(r => r.id))].sort((a, b) => {
+          const dateA = new Date(batchMeta[a].periode_akhir).getTime();
+          const dateB = new Date(batchMeta[b].periode_akhir).getTime();
+          if (dateA !== dateB) return dateA - dateB; // Urut kronologis dari yang terlama ke terbaru
+          return a - b; // Jika tanggal sama, fallback ke ID
+        });
 
         const activeAreas = Object.keys(areaMap);
 
